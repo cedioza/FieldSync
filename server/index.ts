@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 
-process.env.DATABASE_URL = "file:./prisma/dev.db";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "file:./prisma/dev.db";
 import { PrismaClient } from '@prisma/client';
 
 const app = express();
@@ -110,9 +110,9 @@ app.get('/api/technicians', async (req, res) => {
 });
 
 // Serve frontend build (For Docker Production Environment)
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use((req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
 // Server boot

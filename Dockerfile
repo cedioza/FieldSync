@@ -14,7 +14,7 @@ COPY server/prisma ./prisma
 RUN npm ci
 COPY server/ .
 RUN npx prisma generate
-RUN npx tsc index.ts
+RUN npx tsc -p tsconfig.json
 
 # ---- Stage 3: Production ----
 FROM node:20-alpine AS production
@@ -27,7 +27,6 @@ RUN apk add --no-cache sqlite
 COPY --from=backend-builder /server/package*.json ./
 COPY --from=backend-builder /server/node_modules ./node_modules
 COPY --from=backend-builder /server/dist ./dist
-COPY --from=backend-builder /server/index.js ./index.js
 COPY --from=backend-builder /server/prisma ./prisma
 
 # Copy frontend build (Express serves it as static)
@@ -44,4 +43,4 @@ VOLUME ["/app/data"]
 EXPOSE 3000
 
 # Push schema & start server
-CMD ["sh", "-c", "npx prisma db push --schema=./prisma/schema.prisma && node index.js"]
+CMD ["sh", "-c", "npx prisma db push --schema=./prisma/schema.prisma && node dist/index.js"]
