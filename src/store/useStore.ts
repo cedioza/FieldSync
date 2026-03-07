@@ -64,6 +64,7 @@ interface AppState {
 
     // Actions
     assignOrder: (id: string, contractor: 'STS' | 'SWFS') => void;
+    deleteOrder: (id: string) => void;
     updateStatus: (id: string, status: WorkOrder['status']) => void;
     dispatchTech: (id: string) => void;
     completeOrder: (id: string) => void;
@@ -109,6 +110,18 @@ export const useStore = create<AppState>((set, get) => ({
             }));
         } catch (error) {
             console.error('Failed to assign order:', error);
+        }
+    },
+
+    deleteOrder: async (id) => {
+        try {
+            await fetch(`${API_URL}/orders/${id}`, { method: 'DELETE' });
+            set((state) => ({
+                orders: state.orders.filter(o => o.id !== id),
+                selectedOrderId: state.selectedOrderId === id ? null : state.selectedOrderId
+            }));
+        } catch (error) {
+            console.error('Failed to delete order:', error);
         }
     },
 

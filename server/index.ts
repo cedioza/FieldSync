@@ -99,6 +99,19 @@ app.put('/api/orders/:id/status', async (req, res) => {
     }
 });
 
+// DELETE /api/orders/:id
+app.delete('/api/orders/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.workOrder.delete({
+            where: { id }
+        });
+        res.status(204).end();
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete order' });
+    }
+});
+
 // GET /api/technicians
 app.get('/api/technicians', async (req, res) => {
     try {
