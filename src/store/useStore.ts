@@ -80,7 +80,7 @@ interface AppState {
     fetchData: () => Promise<void>;
 }
 
-const API_URL = 'http://localhost:4000/api';
+const API_URL = '/api';
 
 function now() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

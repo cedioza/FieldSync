@@ -43,5 +43,5 @@ VOLUME ["/app/data"]
 
 EXPOSE 3000
 
-# Push schema & start server
-CMD ["sh", "-c", "npx prisma db push --schema=./prisma/schema.prisma && node dist/index.js"]
+# Push schema, seed DB & start server
+CMD ["sh", "-c", "npx prisma db push --schema=./prisma/schema.prisma && node dist/prisma/seed.js && node dist/index.js"]
