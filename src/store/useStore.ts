@@ -30,11 +30,14 @@ export interface WorkOrder {
 
     // Timestamps
     created: string;
-    completedAt?: string;
+    completedAt?: string | null;
 
     // Optional arrays for media
     photos?: Record<string, any>;
     workReport?: any;
+
+    // Install-specific: lot schedule
+    lots?: { num: string; client: string; sched: string; status: string }[];
 }
 
 export interface Technician {
@@ -62,6 +65,10 @@ interface AppState {
     // Actions
     assignOrder: (id: string, contractor: 'STS' | 'SWFS') => void;
     updateStatus: (id: string, status: WorkOrder['status']) => void;
+    dispatchTech: (id: string) => void;
+    completeOrder: (id: string) => void;
+    rejectOrder: (id: string) => void;
+    capturePhoto: (orderId: string, photoKey: string, meta: Record<string, any>) => void;
     setSelectedOrder: (id: string | null) => void;
     setFilter: (f: string) => void;
     setRegion: (r: string) => void;
@@ -127,6 +134,71 @@ export const useStore = create<AppState>((set, get) => ({
         } catch (error) {
             console.error('Failed to update status:', error);
         }
+    },
+
+    dispatchTech: async (id) => {
+        try {
+            await fetch(`${API_URL}/orders/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'inprogress' })
+            });
+            set((state) => ({
+                orders: state.orders.map(o => {
+                    if (o.id === id) {
+                        const techName = o.contractor === 'SWFS' ? 'Ramon V.' : 'Carlos M.';
+                        return { ...o, status: 'inprogress' as const, assignedTech: techName };
+                    }
+                    return o;
+                })
+            }));
+        } catch (error) {
+            console.error('Failed to dispatch tech:', error);
+        }
+    },
+
+    completeOrder: async (id) => {
+        try {
+            await fetch(`${API_URL}/orders/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'done' })
+            });
+            set((state) => ({
+                orders: state.orders.map(o =>
+                    o.id === id ? { ...o, status: 'done' as const, completedAt: now() } : o
+                )
+            }));
+        } catch (error) {
+            console.error('Failed to complete order:', error);
+        }
+    },
+
+    rejectOrder: async (id) => {
+        try {
+            set((state) => ({
+                orders: state.orders.map(o => {
+                    if (o.id === id) {
+                        const alt = o.contractor === 'STS' ? 'SWFS' : 'STS';
+                        return { ...o, contractor: alt as 'STS' | 'SWFS', status: 'assigned' as const };
+                    }
+                    return o;
+                })
+            }));
+        } catch (error) {
+            console.error('Failed to reject order:', error);
+        }
+    },
+
+    capturePhoto: (orderId, photoKey, meta) => {
+        set((state) => ({
+            orders: state.orders.map(o => {
+                if (o.id === orderId) {
+                    return { ...o, photos: { ...(o.photos || {}), [photoKey]: meta } };
+                }
+                return o;
+            })
+        }));
     },
 
     setSelectedOrder: (id) => set({ selectedOrderId: id }),
