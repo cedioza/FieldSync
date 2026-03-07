@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model WorkOrder {
+  id           String    @id
+  type         String
+  siteType     String
+  region       String
+  title        String
+  location     String
+  partner      String
+  address      String
+  lat          Float
+  lng          Float
+  status       String
+  contractor   String?
+  assignedTech String?
+  equipment    String    // Stored as JSON string
+  task         String
+  mopItems     String    // Stored as JSON string
+  hours        Int
+  travelHours  Int
+  apEngineer   String
+  apPhone      String
+  created      DateTime  @default(now())
+  completedAt  DateTime?
+  
+  // Relations
+  photos       Photo[]
+  workReport   WorkReport?
+}
+
+model Photo {
+  id          String   @id @default(cuid())
+  orderId     String
+  key         String   // The photo checklist key (e.g. 'router-front' or 'lot205_trench')
+  lat         String
+  lng         String
+  url         String
+  timestamp   String
+  
+  order       WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@unique([orderId, key])
+}
+
+model WorkReport {
+  id          String   @id @default(cuid())
+  orderId     String   @unique
+  arrival     String
+  departure   String
+  notes       String
+  details     String
+  engineer    String
+  numTechs    Int
+
+  order       WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model Technician {
+  id         String @id
+  name       String
+  specialty  String
+  zone       String
+  contractor String
+  status     String
+  orders     Int
+  lat        Float
+  lng        Float
+}

@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FieldSync v6 — AccessParks National Operations</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Barlow:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+:root {
+  --bg:#060810; --panel:#0d1117; --panel2:#111620;
+  --border:#1a2030; --border2:#242d40;
+  --red:#ff2d2d; --green:#00e5a0; --blue:#2d7aff;
+  --yellow:#ffd93d; --orange:#ff6b35; --purple:#c084fc; --teal:#00bcd4;
+  --text:#c8d4e8; --muted:#4a5568; --muted2:#2d3748;
+  /* Site type colors */
+  --mhc:#00e5a0; --rvpark:#ffd93d; --natpark:#2d7aff; --residential:#c084fc;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* HEADER */
+header{height:52px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;z-index:100}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:var(--green);letter-spacing:3px;flex-shrink:0}
+.logo span{color:var(--muted)}
+.hdiv{width:1px;height:24px;background:var(--border)}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1s infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.live-lbl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:1px}
+.alert-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);background:rgba(255,45,45,.1);border:1px solid rgba(255,45,45,.25);padding:3px 10px;border-radius:4px;letter-spacing:1px}
+.view-tabs{display:flex;gap:3px;margin-left:auto}
+.tab{padding:5px 14px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.tab.active{background:var(--green);color:#000;font-weight:700}
+.tab.inactive{border-color:var(--muted2);color:var(--muted)}
+.tab.inactive:hover{border-color:var(--green);color:var(--green)}
+.user-pill{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text);background:var(--panel2);border:1px solid var(--border2);padding:4px 12px;border-radius:4px;margin-left:10px;flex-shrink:0}
+
+/* VIEWS */
+.view{display:none;flex:1;overflow:hidden}
+.view.active{display:flex}
+#view-company.active,#view-tech.active{display:flex}
+
+/* ======= SCROLLBAR ======= */
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ======= SHARED CHIPS ======= */
+.chip{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:3px;letter-spacing:1px}
+.chip-critical{background:rgba(255,45,45,.15);color:var(--red);border:1px solid rgba(255,45,45,.3)}
+.chip-assigned{background:rgba(45,122,255,.15);color:var(--blue);border:1px solid rgba(45,122,255,.3)}
+.chip-inprogress{background:rgba(0,229,160,.12);color:var(--green);border:1px solid rgba(0,229,160,.25)}
+.chip-done{background:rgba(74,85,104,.2);color:var(--muted);border:1px solid var(--muted2)}
+.equip-chip{padding:3px 9px;background:rgba(45,122,255,.12);border:1px solid rgba(45,122,255,.2);border-radius:3px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue)}
+
+/* SITE TYPE CHIPS */
+.site-chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:3px;letter-spacing:1px}
+.site-mhc{background:rgba(0,229,160,.1);color:var(--mhc);border:1px solid rgba(0,229,160,.25)}
+.site-rvpark{background:rgba(255,217,61,.1);color:var(--rvpark);border:1px solid rgba(255,217,61,.25)}
+.site-natpark{background:rgba(45,122,255,.12);color:var(--natpark);border:1px solid rgba(45,122,255,.25)}
+.site-residential{background:rgba(192,132,252,.12);color:var(--residential);border:1px solid rgba(192,132,252,.25)}
+
+/* SCALE BAR */
+.scale-bar{display:flex;align-items:center;gap:20px;padding:6px 20px;background:rgba(0,229,160,.04);border-bottom:1px solid rgba(0,229,160,.1);flex-shrink:0}
+.scale-stat{display:flex;align-items:center;gap:8px}
+.scale-num{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:var(--green)}
+.scale-lbl{font-size:10px;color:var(--muted)}
+.scale-div{width:1px;height:16px;background:var(--border2)}
+
+/* REGION FILTER */
+.region-bar{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.region-tab{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);color:var(--muted);white-space:nowrap;transition:all .15s}
+.region-tab.on{border-color:var(--orange);color:var(--orange);background:rgba(255,107,53,.06)}
+.region-tab:hover{border-color:var(--orange);color:var(--orange)}
+
+/* CONTRACTOR BADGE */
+.contractor-badge{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 7px;border-radius:3px;letter-spacing:1px}
+.cb-sts{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.cb-swfs{background:rgba(192,132,252,.1);color:var(--purple);border:1px solid rgba(192,132,252,.2)}
+.cb-none{background:rgba(255,45,45,.1);color:var(--red);border:1px solid rgba(255,45,45,.2)}
+
+/* ======================================================
+   VIEW 1: ZIAD — DISPATCHER
+   ====================================================== */
+.disp-layout{display:flex;width:100%;height:100%;overflow:hidden}
+
+.disp-left{width:270px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-hdr{padding:12px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-title{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.btn-new{background:var(--red);color:#fff;border:none;padding:5px 11px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;border-radius:4px;letter-spacing:1px;transition:all .2s}
+.btn-new:hover{background:#ff5555}
+.fault-list{overflow-y:auto;flex:1}
+.fault-card{padding:12px 15px;border-bottom:1px solid var(--border);cursor:pointer;transition:all .15s;position:relative}
+.fault-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.fault-card.critical::before{background:var(--red)}
+.fault-card.assigned::before{background:var(--blue)}
+.fault-card.inprogress::before{background:var(--green)}
+.fault-card.done::before{background:var(--muted)}
+.fault-card:hover{background:rgba(255,255,255,.02)}
+.fault-card.sel{background:rgba(255,255,255,.04)}
+.fc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.fc-id{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.fc-title{font-size:13px;font-weight:600;margin-bottom:3px;line-height:1.3}
+.fc-loc{font-size:11px;color:var(--muted)}
+
+/* MAP */
+.disp-map{flex:1;position:relative;overflow:hidden;background:#06090f}
+#us-map{width:100%;height:100%;position:absolute;inset:0}
+.state-fill{fill:#0d1828;stroke:#1c2e44;stroke-width:0.5;transition:fill .2s}
+.state-fill:hover{fill:#112236}
+.state-borders{fill:none;stroke:#243a55;stroke-width:1}
+.coverage-zone{fill:rgba(0,229,160,.06);stroke:rgba(0,229,160,.22);stroke-width:1;stroke-dasharray:5 4}
+.coverage-label{font-family:'IBM Plex Mono',monospace;font-size:8px;fill:rgba(0,229,160,.38);letter-spacing:1px}
+.map-pin{cursor:pointer}
+.pin-pulse{animation:pring 1.5s ease-out infinite;transform-origin:center}
+@keyframes pring{0%{r:12;opacity:.5}100%{r:26;opacity:0}}
+.pin-pulse-b{animation:pringb 2s ease-out infinite;transform-origin:center}
+@keyframes pringb{0%{r:12;opacity:.4}100%{r:22;opacity:0}}
+.map-stats{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:2px;z-index:20}
+.ms-pill{background:rgba(6,9,16,.92);border:1px solid var(--border2);padding:6px 14px;font-family:'IBM Plex Mono',monospace;font-size:10px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(6px)}
+.ms-pill:first-child{border-radius:5px 0 0 5px}.ms-pill:last-child{border-radius:0 5px 5px 0}
+.ms-num{font-size:16px;font-weight:700}.ms-lbl{font-size:9px;color:var(--muted)}
+.map-legend{position:absolute;bottom:16px;left:16px;background:rgba(6,9,16,.92);border:1px solid var(--border2);border-radius:6px;padding:12px 14px;z-index:20;backdrop-filter:blur(6px)}
+.leg-title{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:8px}
+.leg-row{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:6px}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.map-tip{position:absolute;background:rgba(10,14,24,.96);border:1px solid var(--border2);border-radius:6px;padding:10px 14px;pointer-events:none;z-index:40;font-size:12px;opacity:0;transition:opacity .15s;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.8);backdrop-filter:blur(8px)}
+.map-tip.vis{opacity:1}
+
+/* ORDER TYPE CHIPS */
+.otype-tag{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:3px;letter-spacing:1px}
+.tag-fault{background:rgba(255,45,45,.12);color:var(--red);border:1px solid rgba(255,45,45,.25)}
+.tag-install{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.22)}
+.tag-upgrade{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+.tag-maintenance{background:rgba(255,217,61,.1);color:var(--yellow);border:1px solid rgba(255,217,61,.25)}
+.tag-survey{background:rgba(45,122,255,.12);color:var(--blue);border:1px solid rgba(45,122,255,.25)}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.filter-tab{font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 8px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);color:var(--muted);white-space:nowrap;transition:all .15s}
+.filter-tab.on{border-color:var(--green);color:var(--green);background:rgba(0,229,160,.06)}
+.filter-tab:hover{border-color:var(--green);color:var(--green)}
+
+/* DETAIL PANEL */
+.disp-right{width:320px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:transform .3s}
+.disp-right.hide{transform:translateX(320px)}
+.dr-hdr{padding:15px;border-bottom:1px solid var(--border);flex-shrink:0}
+.dr-close{float:right;cursor:pointer;color:var(--muted);font-size:15px;padding:2px 6px;border-radius:3px;transition:all .15s}
+.dr-close:hover{background:var(--border2);color:var(--text)}
+.dr-id{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:4px}
+.dr-title{font-size:16px;font-weight:800;line-height:1.2;margin-bottom:8px}
+.dr-body{overflow-y:auto;flex:1;padding:15px}
+.info-row{margin-bottom:13px}
+.info-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:3px}
+.info-val{font-size:12px}
+.equip-wrap{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.hdivider{height:1px;background:var(--border);margin:13px 0}
+.assign-block{background:rgba(255,45,45,.04);border:1px solid rgba(255,45,45,.15);border-radius:6px;padding:13px;margin-bottom:12px}
+.assign-ttl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--red);letter-spacing:1px;margin-bottom:9px}
+.ctr-opt{display:flex;align-items:center;gap:9px;padding:9px 11px;background:var(--panel2);border:1px solid var(--border2);border-radius:5px;margin-bottom:6px;cursor:pointer;transition:all .15s}
+.ctr-opt:hover{border-color:var(--green)}.ctr-opt.sel{border-color:var(--green);background:rgba(0,229,160,.05)}
+.cot-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-g{background:var(--green);box-shadow:0 0 5px var(--green)}.dot-m{background:var(--muted)}
+.cot-name{font-size:13px;font-weight:600}.cot-meta{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-left:auto}
+.btn-primary{width:100%;padding:11px;background:var(--green);color:#000;border:none;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .2s;margin-top:9px}
+.btn-primary:hover{background:#00ffb3;transform:translateY(-1px)}
+.btn-secondary{width:100%;padding:9px;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s;margin-top:6px}
+.btn-secondary:hover{border-color:var(--muted);color:var(--text)}
+.btn-danger{width:100%;padding:9px;background:transparent;color:var(--red);border:1px solid rgba(255,45,45,.3);border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;cursor:pointer;transition:all .15s;margin-top:6px}
+.btn-danger:hover{background:rgba(255,45,45,.08)}
+.assigned-block{background:rgba(45,122,255,.05);border:1px solid rgba(45,122,255,.2);border-radius:6px;padding:13px;margin-bottom:12px}
+.assigned-ttl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);margin-bottom:6px}
+.settle-box{background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:14px;margin-bottom:12px}
+.tl{display:flex;flex-direction:column}
+.tl-step{display:flex;gap:11px}
+.tl-left{display:flex;flex-direction:column;align-items:center;width:20px;flex-shrink:0}
+.tl-dot{width:10px;height:10px;border-radius:50%;border:2px solid var(--muted2);background:var(--bg);flex-shrink:0;transition:all .3s}
+.tl-dot.done{background:var(--green);border-color:var(--green)}.tl-dot.active{background:var(--blue);border-color:var(--blue);box-shadow:0 0 8px var(--blue)}
+.tl-line{width:2px;flex:1;min-height:24px;background:var(--border)}.tl-line.done{background:var(--green)}
+.tl-content{padding-bottom:20px;flex:1}
+.tl-lbl{font-size:12px;font-weight:600;margin-bottom:2px}
+.tl-sub{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+
+/* ======================================================
+   VIEW 2: STS — CONTRACTOR DASHBOARD
+   ====================================================== */
+#view-company{flex-direction:column;overflow:hidden}
+.sts-layout{display:flex;flex:1;overflow:hidden}
+
+/* STS left nav */
+.sts-nav{width:200px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0}
+.sts-nav-item{padding:10px 18px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:10px;border-left:3px solid transparent}
+.sts-nav-item:hover{background:rgba(255,255,255,.02);color:var(--green)}
+.sts-nav-item.active{border-left-color:var(--green);color:var(--green);background:rgba(0,229,160,.04)}
+.sts-nav-item .nav-icon{font-size:14px;width:18px;text-align:center}
+.sts-nav-badge{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;background:rgba(255,45,45,.2);color:var(--red);border:1px solid rgba(255,45,45,.3);padding:1px 6px;border-radius:10px}
+
+/* STS main area */
+.sts-main{flex:1;overflow-y:auto;padding:24px}
+
+/* STS sections */
+.sts-section{display:none}
+.sts-section.active{display:block}
+.sts-section-title{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:16px}
+.sts-title{font-size:22px;font-weight:900;margin-bottom:4px}
+.sts-subtitle{font-size:12px;color:var(--muted);margin-bottom:20px}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px}
+.stat-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}
+.stat-val{font-size:28px;font-weight:900}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* Technicians table */
+.data-table{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:20px}
+.tbl-hdr{display:grid;padding:10px 16px;border-bottom:1px solid var(--border);font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.tbl-row{display:grid;padding:13px 16px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;cursor:pointer;transition:background .15s}
+.tbl-row:hover{background:rgba(0,229,160,.03)}
+.tbl-row:last-child{border-bottom:none}
+.tech-cols{grid-template-columns:160px 1fr 100px 90px 100px}
+.orders-cols{grid-template-columns:110px 80px 1fr 130px 90px 110px}
+.invoice-cols{grid-template-columns:120px 1fr 100px 100px 110px}
+.tech-avatar{width:28px;height:28px;border-radius:50%;background:var(--panel2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--green);flex-shrink:0;font-family:'IBM Plex Mono',monospace}
+.tech-info{display:flex;align-items:center;gap:10px}
+.tech-name{font-size:13px;font-weight:600}
+.tech-zone{font-size:10px;color:var(--muted)}
+.avail-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.avail-yes{background:var(--green);box-shadow:0 0 5px var(--green)}
+.avail-busy{background:var(--yellow)}
+.avail-off{background:var(--muted)}
+.cell-id{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green)}
+.cell-amount{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.btn-add-tech{background:var(--green);color:#000;border:none;padding:8px 18px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;border-radius:5px;letter-spacing:1px;transition:all .2s;margin-bottom:16px}
+.btn-add-tech:hover{background:#00ffb3}
+
+/* Invoice card */
+.invoice-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+.inv-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.inv-to{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px}
+.inv-company{font-size:16px;font-weight:800}
+.inv-amount{font-size:28px;font-weight:900;color:var(--green);text-align:right}
+.inv-label{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);text-align:right}
+.inv-row{display:flex;justify-content:space-between;font-size:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.inv-row:last-child{border-bottom:none}
+.inv-row-total{display:flex;justify-content:space-between;font-size:14px;font-weight:800;padding-top:10px;color:var(--green)}
+.btn-send-inv{background:var(--blue);color:#fff;border:none;padding:10px 20px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;border-radius:5px;letter-spacing:1px;transition:all .2s;margin-top:14px}
+.btn-send-inv:hover{background:#4d90ff}
+
+/* Assign tech modal */
+.sts-assign-block{background:rgba(45,122,255,.05);border:1px solid rgba(45,122,255,.2);border-radius:6px;padding:13px;margin-bottom:12px}
+.sts-assign-ttl{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--blue);letter-spacing:1px;margin-bottom:9px}
+
+/* ======================================================
+   VIEW 3: TECHNICIAN — SIMPLE
+   ====================================================== */
+#view-tech{align-items:center;justify-content:center;background:linear-gradient(135deg,#060810 0%,#0a0f1a 100%)}
+.phone-frame{width:375px;height:calc(100vh - 52px);max-height:720px;background:var(--panel);border:1px solid var(--border2);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 32px 80px rgba(0,0,0,.8)}
+.phone-status{height:34px;background:var(--panel);display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.phone-time{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700}
+.phone-body{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+
+/* Tech simple states */
+.tech-idle{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:30px;text-align:center}
+.tech-idle-icon{font-size:56px;margin-bottom:16px}
+.tech-idle-title{font-size:18px;font-weight:800;margin-bottom:6px}
+.tech-idle-sub{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace}
+
+.tech-alert{padding:20px}
+.alert-banner{background:rgba(255,45,45,.06);border:1px solid rgba(255,45,45,.2);border-radius:12px;padding:18px;margin-bottom:16px;position:relative}
+.ab-type{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--red);letter-spacing:2px;margin-bottom:6px}
+.ab-title{font-size:16px;font-weight:800;margin-bottom:4px;line-height:1.3}
+.ab-loc{font-size:12px;color:var(--muted)}
+.ab-timer{position:absolute;top:14px;right:14px;font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--yellow)}
+
+.order-detail-card{background:var(--panel2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.odc-hdr{padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(0,229,160,.03)}
+.odc-id{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green);margin-bottom:3px}
+.odc-title{font-size:14px;font-weight:700}
+.odc-body{padding:14px 16px}
+.odc-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.odc-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.odc-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:2px}
+.odc-val{font-size:12px}
+
+/* THE ONE BIG BUTTON */
+.complete-btn{margin:0 20px 20px;padding:22px;background:var(--green);color:#000;border:none;border-radius:14px;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:2px;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:12px}
+.complete-btn:hover{background:#00ffb3;transform:scale(1.02)}
+.complete-btn:active{transform:scale(.98)}
+
+.done-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:30px;text-align:center}
+.done-icon{font-size:64px;margin-bottom:16px}
+.done-title{font-size:20px;font-weight:900;margin-bottom:4px}
+.done-id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:20px}
+.done-box{background:var(--panel2);border:1px solid rgba(0,229,160,.2);border-radius:12px;padding:18px;width:100%}
+.done-box-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:4px;text-align:left}
+.done-box-val{font-size:13px;font-weight:600;text-align:left}
+.done-note{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;margin-top:14px;line-height:1.5}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--panel);border:1px solid var(--green);border-radius:6px;padding:11px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);z-index:300;opacity:0;transition:all .3s;white-space:nowrap;max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.red{border-color:var(--red);color:var(--red)}
+
+/* SOW MODAL */
+.sow-modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;backdrop-filter:blur(4px)}
+.sow-modal-bg.open{display:flex}
+.sow-modal{background:var(--panel);border:1px solid var(--border2);border-radius:10px;width:680px;max-width:100%;padding:28px}
+.sow-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.sow-logo{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--green)}
+.sow-close{cursor:pointer;color:var(--muted);font-size:18px;padding:4px 8px;border-radius:4px;background:var(--panel2);border:1px solid var(--border2);transition:all .15s}
+.sow-close:hover{color:var(--text);border-color:var(--muted)}
+.sow-title{font-size:14px;font-weight:800;margin-bottom:16px}
+.sow-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.sow-field{background:var(--panel2);border:1px solid var(--border2);border-radius:5px;padding:10px 12px}
+.sow-field-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:3px}
+.sow-field-val{font-size:12px;font-weight:600}
+.sow-section{margin-bottom:16px}
+.sow-section-title{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--green);letter-spacing:2px;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(0,229,160,.2)}
+.mop-step{display:flex;gap:10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border2);border-radius:5px;margin-bottom:6px}
+.mop-num{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--green);font-weight:700;flex-shrink:0;width:20px}
+.mop-text{font-size:12px;line-height:1.4}
+.mop-check{margin-left:auto;width:16px;height:16px;border:1px solid var(--border2);border-radius:3px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:all .15s}
+.mop-check.checked{background:var(--green);border-color:var(--green);color:#000}
+.sow-equip-list{display:flex;flex-wrap:wrap;gap:5px}
+.sow-sign-row{display:flex;gap:12px;margin-top:16px}
+.sow-sign-box{flex:1;background:var(--panel2);border:1px solid var(--border2);border-radius:5px;padding:12px;text-align:center}
+.sow-sign-name{font-size:13px;font-weight:700;margin-bottom:2px}
+.sow-sign-role{font-size:10px;color:var(--muted)}
+.btn-sow{display:inline-flex;align-items:center;gap:6px;background:rgba(45,122,255,.15);color:var(--blue);border:1px solid rgba(45,122,255,.3);padding:5px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all .15s;letter-spacing:1px}
+.btn-sow:hover{background:rgba(45,122,255,.25)}
+
+/* CHANGE #1+2: Time summary + Download Report */
+.time-summary{background:rgba(0,229,160,.04);border:1px solid rgba(0,229,160,.18);border-radius:6px;padding:13px;margin-bottom:10px}
+.time-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)}
+.time-row:last-of-type{border-bottom:none}
+.time-key{color:var(--muted);font-size:11px}
+.time-val{font-family:'IBM Plex Mono',monospace;font-weight:700}
+.btn-download{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;background:rgba(45,122,255,.1);color:var(--blue);border:1px solid rgba(45,122,255,.3);border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;letter-spacing:1px}
+.btn-download:hover{background:rgba(45,122,255,.2)}
+
+/* CHANGE #3: Photo checklist */
+.photo-step{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border2);border-radius:6px;margin-bottom:5px;transition:all .2s}
+.photo-step.captured{border-color:rgba(0,229,160,.35);background:rgba(0,229,160,.04)}
+.photo-step-label{flex:1;font-size:11px;line-height:1.4}
+.photo-btn{flex-shrink:0;padding:4px 9px;background:rgba(45,122,255,.1);color:var(--blue);border:1px solid rgba(45,122,255,.3);border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
+.photo-btn.done-btn{background:var(--green);color:#000;border-color:var(--green)}
+.photo-meta{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--green);margin-top:2px;line-height:1.4}
+.photos-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,217,61,.05);border:1px solid rgba(255,217,61,.2);border-radius:5px;margin-bottom:10px;font-size:11px}
+.photos-bar.complete{background:rgba(0,229,160,.05);border-color:rgba(0,229,160,.2)}
+
+/* CHANGE #4: Install lot flow */
+.lot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;margin-bottom:7px;cursor:pointer;transition:all .15s}
+.lot-item:hover{border-color:var(--border)}
+.lot-item.active{border-color:rgba(0,229,160,.35);background:rgba(0,229,160,.04)}
+.lot-item.done-lot{opacity:.55}
+.lot-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:var(--green);width:55px;flex-shrink:0}
+.lot-client{flex:1;font-size:12px;font-weight:600}
+.lot-time{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)}
+.lot-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* CHANGE #5: tech marker legend */
+.leg-square{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">FIELD<span>SYNC</span></div>
+  <div class="hdiv"></div>
+  <div class="live-dot"></div>
+  <div class="live-lbl">LIVE DISPATCH</div>
+  <div class="alert-pill" id="alert-pill">⚡ 3 UNASSIGNED</div>
+  <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-left:8px">accessparks.com · national operations</div>
+  <div class="view-tabs">
+    <div class="tab active" onclick="switchView('dispatcher')">ACCESSPARKS · DISPATCHER</div>
+    <div class="tab inactive" onclick="switchView('company')">STS · CONTRACTOR</div>
+    <div class="tab inactive" onclick="switchView('tech')">CARLOS · TECHNICIAN</div>
+  </div>
+  <div class="user-pill" id="user-pill">Marcus Prieto · AP Dispatcher</div>
+</header>
+
+<!-- SCALE BAR — always visible, shows national scope -->
+<div class="scale-bar" id="scale-bar">
+  <div class="scale-stat"><div class="scale-num">847</div><div class="scale-lbl">tickets this month</div></div>
+  <div class="scale-div"></div>
+  <div class="scale-stat"><div class="scale-num" id="sb-active">8</div><div class="scale-lbl">active orders</div></div>
+  <div class="scale-div"></div>
+  <div class="scale-stat"><div class="scale-num">12</div><div class="scale-lbl">contractors</div></div>
+  <div class="scale-div"></div>
+  <div class="scale-stat"><div class="scale-num">34</div><div class="scale-lbl">technicians in field</div></div>
+  <div class="scale-div"></div>
+  <div class="scale-stat"><div class="scale-num">6</div><div class="scale-lbl">states covered</div></div>
+  <div class="scale-div"></div>
+  <div class="scale-stat">
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="site-chip site-mhc">🏘 MHC</span>
+      <span class="site-chip site-rvpark">🚐 RV PARK</span>
+      <span class="site-chip site-natpark">🏔 NAT. PARK</span>
+      <span class="site-chip site-residential">🏠 RESIDENTIAL</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     VIEW 1 — ZIAD DISPATCHER
+     ============================================================ -->
+<div id="view-dispatcher" class="view active">
+<div class="disp-layout">
+
+  <!-- Order Queue -->
+  <div class="disp-left">
+    <div class="panel-hdr">
+      <div class="panel-title">Order Queue</div>
+      <button class="btn-new" onclick="triggerNewFault()">⚡ NEW</button>
+    </div>
+    <div class="filter-bar">
+      <div class="filter-tab on" onclick="setFilter('all',this)">ALL</div>
+      <div class="filter-tab" onclick="setFilter('fault',this)">⚡ FAULT</div>
+      <div class="filter-tab" onclick="setFilter('install',this)">📡 INSTALL</div>
+      <div class="filter-tab" onclick="setFilter('upgrade',this)">⬆ UPGRADE</div>
+      <div class="filter-tab" onclick="setFilter('maintenance',this)">🔧 MAINT</div>
+      <div class="filter-tab" onclick="setFilter('survey',this)">📋 SURVEY</div>
+    </div>
+    <div class="region-bar">
+      <div class="region-tab on" onclick="setRegion('all',this)">🌎 ALL REGIONS</div>
+      <div class="region-tab" onclick="setRegion('CA',this)">📍 CALIFORNIA</div>
+      <div class="region-tab" onclick="setRegion('FL',this)">📍 FLORIDA</div>
+      <div class="region-tab" onclick="setRegion('MT',this)">📍 MONTANA</div>
+      <div class="region-tab" onclick="setRegion('CA-NP',this)">🏔 NAT. PARKS</div>
+    </div>
+    <div class="fault-list" id="fault-list"></div>
+  </div>
+
+  <!-- Map -->
+  <div class="disp-map">
+    <div class="map-stats">
+      <div class="ms-pill"><div><div class="ms-num" id="ms-crit" style="color:var(--red)">1</div><div class="ms-lbl">UNASSIGNED</div></div></div>
+      <div class="ms-pill"><div><div class="ms-num" id="ms-asgn" style="color:var(--blue)">0</div><div class="ms-lbl">ASSIGNED</div></div></div>
+      <div class="ms-pill"><div><div class="ms-num" id="ms-inprog" style="color:var(--green)">0</div><div class="ms-lbl">IN FIELD</div></div></div>
+      <div class="ms-pill"><div><div class="ms-num" id="ms-done" style="color:var(--muted)">0</div><div class="ms-lbl">DONE</div></div></div>
+    </div>
+    <svg id="us-map"></svg>
+    <div class="map-tip" id="map-tip">
+      <div id="tt-id" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:3px"></div>
+      <div id="tt-type" style="font-size:10px;margin-bottom:3px"></div>
+      <div id="tt-title" style="font-size:12px;font-weight:700;margin-bottom:2px"></div>
+      <div id="tt-loc" style="font-size:11px;color:var(--muted)"></div>
+    </div>
+    <div class="map-legend">
+      <div class="leg-title">STATUS</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--red);box-shadow:0 0 6px var(--red)"></div>New Fault — Unassigned</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--blue);box-shadow:0 0 5px var(--blue)"></div>Assigned to STS</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>Tech In Field</div>
+      <div class="leg-row"><div class="leg-dot" style="background:var(--muted)"></div>Completed</div>
+      <div class="leg-row"><div class="leg-square" style="background:#ff6b35;box-shadow:0 0 5px #ff6b35"></div>Technician Location</div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);font-size:10px;color:rgba(0,229,160,.4)">⬡ STS Coverage Zone</div>
+    </div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="disp-right hide" id="disp-right">
+    <div class="dr-hdr">
+      <span class="dr-close" onclick="closeDetail()">✕</span>
+      <div class="dr-id" id="dr-id"></div>
+      <div class="dr-title" id="dr-title"></div>
+      <span class="chip" id="dr-badge"></span>
+    </div>
+    <div class="dr-body" id="dr-body"></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ============================================================
+     VIEW 2 — STS CONTRACTOR DASHBOARD
+     ============================================================ -->
+<div id="view-company" class="view">
+<div class="sts-layout">
+
+  <!-- STS Nav -->
+  <div class="sts-nav">
+    <div style="padding:14px 18px 20px;border-bottom:1px solid var(--border);margin-bottom:8px">
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:3px">LOGGED IN AS</div>
+      <div style="font-size:13px;font-weight:700">STS Corp.</div>
+      <div style="font-size:10px;color:var(--muted)">Contractor · Northern CA</div>
+    </div>
+    <div class="sts-nav-item active" onclick="stsNav('orders',this)"><span class="nav-icon">📋</span>Active Orders <span class="sts-nav-badge" id="nav-badge">1</span></div>
+    <div class="sts-nav-item" onclick="stsNav('technicians',this)"><span class="nav-icon">👷</span>Technicians</div>
+    <div class="sts-nav-item" onclick="stsNav('invoices',this)"><span class="nav-icon">💰</span>Invoicing</div>
+  </div>
+
+  <!-- STS Main -->
+  <div class="sts-main">
+
+    <!-- ORDERS SECTION -->
+    <div class="sts-section active" id="sts-orders">
+      <div class="sts-section-title">ACTIVE ORDERS</div>
+      <div class="sts-title">Work Orders</div>
+      <div class="sts-subtitle">Orders assigned by AccessParks · Dispatch your technicians here</div>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-lbl">Pending Assignment</div><div class="stat-val" id="co-pending" style="color:var(--red)">1</div><div class="stat-sub">need a tech now</div></div>
+        <div class="stat-card"><div class="stat-lbl">In Field</div><div class="stat-val" id="co-infield" style="color:var(--green)">0</div><div class="stat-sub">techs working</div></div>
+        <div class="stat-card"><div class="stat-lbl">Completed</div><div class="stat-val" id="co-done" style="color:var(--muted)">0</div><div class="stat-sub">this month</div></div>
+        <div class="stat-card"><div class="stat-lbl">Billable Hours</div><div class="stat-val" id="co-rev" style="font-size:20px;color:var(--green)">0h</div><div class="stat-sub">apply rate table for $</div></div>
+      </div>
+
+      <div class="data-table">
+        <div class="tbl-hdr orders-cols"><div>ORDER ID</div><div>TYPE</div><div>ISSUE</div><div>LOCATION</div><div>STATUS</div><div>ACTION</div></div>
+        <div id="sts-orders-rows"></div>
+      </div>
+    </div>
+
+    <!-- TECHNICIANS SECTION -->
+    <div class="sts-section" id="sts-technicians">
+      <div class="sts-section-title">ROSTER MANAGEMENT</div>
+      <div class="sts-title">Field Technicians</div>
+      <div class="sts-subtitle">Manage your team — technicians you add appear in order assignment</div>
+      <button class="btn-add-tech" onclick="toast('Add technician form — coming in full build')">+ Add Technician</button>
+      <div class="data-table">
+        <div class="tbl-hdr tech-cols"><div>NAME</div><div>SPECIALTY</div><div>ZONE</div><div>STATUS</div><div>ORDERS/MO</div></div>
+        <div id="tech-roster-rows"></div>
+      </div>
+    </div>
+
+    <!-- INVOICES SECTION -->
+    <div class="sts-section" id="sts-invoices">
+      <div class="sts-section-title">BILLING</div>
+      <div class="sts-title">Invoicing</div>
+      <div class="sts-subtitle">Monthly invoice to AccessParks — based on completed work orders by type</div>
+      <div class="invoice-card">
+        <div class="inv-header">
+          <div>
+            <div class="inv-to">INVOICE TO</div>
+            <div class="inv-company">AccessParks Inc.</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'IBM Plex Mono',monospace">Period: March 2025 · Zone: California MHPs</div>
+          </div>
+          <div>
+            <div class="inv-label">TOTAL HOURS</div>
+            <div class="inv-amount" id="inv-total" style="font-size:22px">0h</div>
+          </div>
+        </div>
+        <div id="inv-rows"></div>
+        <div class="inv-row-total"><span>TOTAL BILLABLE HOURS</span><span id="inv-total-2">0h</span></div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;font-style:italic">Apply AccessParks rate table to calculate invoice amount</div>
+        <button class="btn-send-inv" onclick="toast('Invoice sent to Ziad · PDF generated')">Send Invoice →</button>
+      </div>
+
+      <div style="margin-top:20px">
+        <div class="sts-section-title">TECHNICIAN PAYOUTS</div>
+        <div class="data-table">
+          <div class="tbl-hdr invoice-cols"><div>TECHNICIAN</div><div>ZONE</div><div>ORDERS</div><div>HOURS</div><div>PAYOUT</div></div>
+          <div id="payout-rows"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ============================================================
+     VIEW 3 — TECHNICIAN (ULTRA SIMPLE)
+     ============================================================ -->
+<div id="view-tech" class="view">
+  <div class="phone-frame">
+    <div class="phone-status">
+      <div class="phone-time" id="phone-time">9:41</div>
+      <div style="font-size:11px;color:var(--muted)">📶 🔋</div>
+    </div>
+    <div class="phone-body" id="tech-phone-body"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== DATA ====================
+const ORDER_TYPES = {
+  fault:       {label:'FAULT',       icon:'⚡', tagCls:'tag-fault',       color:'#ff2d2d', rate:100},
+  install:     {label:'INSTALL',     icon:'📡', tagCls:'tag-install',     color:'#00e5a0', rate:120},
+  upgrade:     {label:'UPGRADE',     icon:'⬆',  tagCls:'tag-upgrade',     color:'#c084fc', rate:140},
+  maintenance: {label:'MAINT',       icon:'🔧', tagCls:'tag-maintenance', color:'#ffd93d', rate:85},
+  survey:      {label:'SURVEY',      icon:'📋', tagCls:'tag-survey',      color:'#2d7aff', rate:75},
+};
+
+// Site types — what kind of AccessParks venue
+const SITE_TYPES = {
+  mhc:         {label:'MHC',         icon:'🏘', color:'#00e5a0', cls:'site-mhc',         desc:'Manufactured Housing Community'},
+  rvpark:      {label:'RV PARK',     icon:'🚐', color:'#ffd93d', cls:'site-rvpark',      desc:'RV Park & Campground'},
+  natpark:     {label:'NAT. PARK',   icon:'🏔', color:'#2d7aff', cls:'site-natpark',     desc:'U.S. National Park'},
+  residential: {label:'RESIDENTIAL', icon:'🏠', color:'#c084fc', cls:'site-residential', desc:'Residential Community'},
+};
+
+// Contractors — multi-vendor
+const CONTRACTORS = {
+  STS:  {name:'STS Corp.',               region:'Northern CA', color:'#00e5a0', cls:'cb-sts'},
+  SWFS: {name:'Southwest Field Services',region:'AZ / FL / MT',color:'#c084fc', cls:'cb-swfs'},
+};
+
+const technicians = [
+  {id:'T01',name:'Carlos M.', specialty:'WiFi / Low Voltage',       zone:'Arizona (STS)',   contractor:'STS',  status:'busy',     orders:4, lng:-111.750, lat:33.422},
+  {id:'T02',name:'Luis R.',   specialty:'Fiber / Networking',        zone:'Arizona (STS)',   contractor:'STS',  status:'available',orders:6, lng:-112.107, lat:33.578},
+  {id:'T03',name:'Mike D.',   specialty:'CAT6 / Cabling',            zone:'Arizona (STS)',   contractor:'STS',  status:'available',orders:3, lng:-114.520, lat:32.600},
+  {id:'T04',name:'Jorge P.',  specialty:'WiFi / AnyDesk',            zone:'Arizona (STS)',   contractor:'STS',  status:'off',      orders:2, lng:-111.956, lat:33.415},
+  {id:'T05',name:'Ramon V.',  specialty:'Fiber / Low Voltage',       zone:'Florida (SWFS)',  contractor:'SWFS', status:'busy',     orders:5, lng:-83.418,  lat:30.472},
+  {id:'T06',name:'Derek S.',  specialty:'WiFi / Signal Testing',     zone:'MT/WY (SWFS)',    contractor:'SWFS', status:'available',orders:3, lng:-113.981, lat:48.496},
+];
+
+const faults = [
+  // ── CALIFORNIA MHCs ──
+  {
+    id:'AS-64462', type:'fault', siteType:'mhc', region:'AZ',
+    title:'Lot 205 — DLPC linking at 100 Mbps',
+    location:'Del Pueblo', partner:'Cobblestone Communities',
+    address:'14794 S Ave 3 E, Yuma, AZ 85365',
+    lat:32.600, lng:-114.520,
+    status:'critical', contractor:null, assignedTech:null,
+    equipment:['Windows laptop (admin)','Mobile hotspot','Ethernet cables','Multimeter','Fiber light meter'],
+    task:'Check in at front office. Locate Lot 205. Power cycle all devices. Test cables. AnyDesk for remote engineer. Speed tests. Photo all hardware.',
+    mopItems:[
+      'Check in at front office — "I am with STS for AccessParks WiFi"',
+      'Locate Lot 205 and inspect all network hardware',
+      'Cycle power on all devices — wait 2 min for reboot',
+      'Verify all ethernet cables are firmly seated, run cable tests',
+      'Connect laptop to switch via ethernet, internet via hotspot',
+      'Open AnyDesk — provide code to remote engineer',
+      'Perform speed tests as directed by engineer',
+      'Photo all hardware: DP-DelPueblo-Lot205-Equipment naming',
+    ],
+    hours:2.5, travelHours:0.5, completedAt:null, photos:0,
+    apEngineer:'Marcus Prieto', apPhone:'858-997-2108',
+    created:'09:14 AM', workReport:null,
+  },
+  {
+    id:'AS-64458', type:'install', siteType:'mhc', region:'AZ',
+    title:'New fiber-to-lot install — Lots 12, 13, 14',
+    location:'Citrus Gardens', partner:'Cobblestone Communities',
+    address:'4065 E University Dr, Mesa, AZ 85205',
+    lat:33.422, lng:-111.750,
+    status:'inprogress', contractor:'STS', assignedTech:'Carlos M.',
+    equipment:['WiFi 6 Router','Slack Box','Fiber 100ft','RJ45 crimper','Contract forms'],
+    task:'Install AccessParks fiber at 3 lots. Trench fiber, install router, get client signature. All 8 photos required per lot.',
+    mopItems:[],
+    lots:[
+      {num:'LOT 12',client:'Maria Rodriguez',sched:'8:00 AM', status:'done'},
+      {num:'LOT 13',client:'James Wilson',   sched:'9:30 AM', status:'inprogress'},
+      {num:'LOT 14',client:'Ana Martinez',   sched:'11:00 AM',status:'pending'},
+    ],
+    hours:4, travelHours:0.5, completedAt:null, photos:0,
+    apEngineer:'Marcus Prieto', apPhone:'858-997-2108',
+    created:'07:30 AM', workReport:null,
+  },
+  {
+    id:'AS-64451', type:'upgrade', siteType:'mhc', region:'AZ',
+    title:'DOCSIS 3.1 → Fiber upgrade — 6 units',
+    location:'Desertscape', partner:'Cobblestone Communities',
+    address:'2050 W Dunlap Ave, Phoenix, AZ 85021',
+    lat:33.578, lng:-112.107,
+    status:'assigned', contractor:'STS', assignedTech:null,
+    equipment:['DOCSIS 3.1 modem','Laptop','Cable tester','AnyDesk'],
+    task:'Swap legacy modems with DOCSIS 3.1 across 6 units. Speed test before and after each swap.',
+    mopItems:[],
+    hours:4, travelHours:0.75, completedAt:null, photos:0,
+    apEngineer:'Juan DeAlessandro', apPhone:'858-997-2108',
+    created:'06:00 AM', workReport:null,
+  },
+  {
+    id:'AS-64440', type:'maintenance', siteType:'mhc', region:'AZ',
+    title:'Quarterly node inspection — Building A',
+    location:'Aspenwood', partner:'Cobblestone Communities',
+    address:'245 S 56th St, Mesa, AZ 85206',
+    lat:33.415, lng:-111.956,
+    status:'done', contractor:'STS', assignedTech:'Carlos M.',
+    equipment:['Signal meter','Ladder','Cleaning kit'],
+    task:'Inspect and clean fiber node. Check power levels and connector integrity.',
+    mopItems:[],
+    hours:2, travelHours:0.5, completedAt:'10:15 AM', photos:4,
+    apEngineer:'Marcus Prieto', apPhone:'858-997-2108',
+    created:'Yesterday',
+    workReport:{arrival:'08:10',departure:'10:15',notes:'Node cleaned. Connectors verified. Signal restored.',details:'1. Node inspection\n2. Fiber cleaning\n3. Signal meter readings\n4. Power verification\n5. Service confirmed',engineer:'Marcus Prieto',numTechs:1},
+  },
+  // ── FLORIDA — JELLYSTONE PARK (REAL ACCESSPARKS PARTNER) ──
+  {
+    id:'AS-64471', type:'fault', siteType:'rvpark', region:'FL',
+    title:'Pool WiFi AP down — 80+ guests affected',
+    location:"Yogi Bear's Jellystone Park™ — Madison", partner:"Yogi Bear's Jellystone",
+    address:'1051 SW Old St. Augustine Rd, Madison, FL 32340',
+    lat:30.472, lng:-83.418,
+    status:'critical', contractor:null, assignedTech:null,
+    equipment:['Laptop','Signal meter','AP spare unit','Ethernet cables','Ladder'],
+    task:'Pool WiFi AP down. 80+ guests affected. Replace AP unit or restore signal. Verify full park coverage after fix.',
+    mopItems:[
+      'Check in with park manager — Jellystone Park Madison',
+      'Locate pool area AP — verify power and ethernet connectivity',
+      'Test signal at multiple points around pool and RV sites',
+      'Replace AP if hardware failure confirmed',
+      'Verify coverage restores to all pool-area sites',
+      'Speed test from 3 guest devices',
+    ],
+    hours:2, travelHours:1, completedAt:null, photos:0,
+    apEngineer:'Juan DeAlessandro', apPhone:'858-997-2108',
+    created:'10:30 AM', workReport:null,
+  },
+  {
+    id:'AS-64468', type:'install', siteType:'rvpark', region:'FL',
+    title:'New fiber — RV sites 40–60 expansion',
+    location:"Yogi Bear's Jellystone Park™ — Madison", partner:"Yogi Bear's Jellystone",
+    address:'1051 SW Old St. Augustine Rd, Madison, FL 32340',
+    lat:30.475, lng:-83.415,
+    status:'inprogress', contractor:'SWFS', assignedTech:'Ramon V.',
+    equipment:['Fiber 500ft','AP units x4','PoE switches','Conduit','Mounting hardware'],
+    task:'Extend fiber infrastructure to new 20-site expansion. Install 4 new outdoor APs for full RV site coverage.',
+    mopItems:[],
+    hours:6, travelHours:0.5, completedAt:null, photos:0,
+    apEngineer:'Juan DeAlessandro', apPhone:'858-997-2108',
+    created:'08:00 AM', workReport:null,
+  },
+  // ── NATIONAL PARKS — ACCESSPARKS IS SOLE APPROVED BROADBAND PROVIDER ──
+  {
+    id:'AS-64465', type:'survey', siteType:'natpark', region:'MT',
+    title:'Pre-install survey — Lodge & campground',
+    location:'Glacier National Park', partner:'U.S. National Park Service',
+    address:'64 Grinnell Dr, West Glacier, MT 59936',
+    lat:48.496, lng:-113.981,
+    status:'assigned', contractor:'SWFS', assignedTech:null,
+    equipment:['Laptop','Camera','Signal meter','GPS unit','NPS-approved site plans'],
+    task:'Survey Lodge area and campground for new broadband infrastructure. Document conduit options. Coordinate with NPS ranger station. AccessParks is the only approved broadband provider in the NPS.',
+    mopItems:[
+      'Check in with NPS Ranger Station — present AP contractor credentials',
+      'Survey Lodge WiFi coverage gaps with signal meter',
+      'Document existing conduit and power infrastructure',
+      'Photograph proposed AP mounting locations',
+      'GPS-tag all proposed locations',
+      'Review plan with on-site NPS contact before departing',
+    ],
+    hours:4, travelHours:2, completedAt:null, photos:0,
+    apEngineer:'Marcus Prieto', apPhone:'858-997-2108',
+    created:'07:00 AM', workReport:null,
+  },
+  {
+    id:'AS-64448', type:'maintenance', siteType:'natpark', region:'WY',
+    title:'Annual AP inspection — Old Faithful zone',
+    location:'Yellowstone National Park', partner:'U.S. National Park Service',
+    address:'Old Faithful Area, Yellowstone NP, WY 82190',
+    lat:44.460, lng:-110.828,
+    status:'done', contractor:'SWFS', assignedTech:'Derek S.',
+    equipment:['Signal meter','Laptop','Climbing gear','Weather-sealed enclosures'],
+    task:'Annual inspection of all AP units and fiber infrastructure in the Old Faithful zone. AccessParks — sole broadband concessioner in US National Park system.',
+    mopItems:[],
+    hours:8, travelHours:3, completedAt:'03:45 PM', photos:12,
+    apEngineer:'Marcus Prieto', apPhone:'858-997-2108',
+    created:'2 days ago',
+    workReport:{arrival:'07:00',departure:'15:45',notes:'All 14 AP units inspected. 2 enclosures replaced. Signal nominal.',details:'1. Visual inspection all APs\n2. Firmware updates\n3. Signal testing\n4. 2 weatherproof enclosure replacements\n5. Documentation complete',engineer:'Marcus Prieto',numTechs:2},
+  },
+];
+
+let selectedId=null, selectedContractor='STS', activeFilter='all', activeRegion='all';
+let faultCounter=64480;
+let mapProjection=null;
+
+// CHANGE #3+#6: Photo checklists per order type
+const PHOTO_CHECKLISTS = {
+  fault:[
+    {key:'arrival',   label:'📷 Arrival photo — timestamp + lot number visible'},
+    {key:'before',    label:'📷 Before state — equipment as found'},
+    {key:'work',      label:'📷 Work in progress'},
+    {key:'after',     label:'📷 After state — issue resolved'},
+    {key:'speedtest', label:'📷 Speed test screenshot'},
+  ],
+  install:[
+    {key:'vault',     label:'📷 Vault / baúl (fiber origin point)'},
+    {key:'trench',    label:'📷 Trench — full length'},
+    {key:'covered',   label:'📷 Trench filled and covered'},
+    {key:'cable',     label:'📷 Cable entry + routing inside home'},
+    {key:'router',    label:'📷 Router installed'},
+    {key:'serial',    label:'📷 Router serial number (clear + legible)'},
+    {key:'speedtest', label:'📷 Speed test — 500 Mbps target'},
+    {key:'contract',  label:'📷 Signed customer contract'},
+  ],
+  upgrade:[
+    {key:'old_equip',    label:'📷 Old equipment — model + serial'},
+    {key:'new_equip',    label:'📷 New modem installed'},
+    {key:'speed_before', label:'📷 Speed test BEFORE upgrade'},
+    {key:'speed_after',  label:'📷 Speed test AFTER upgrade'},
+  ],
+  maintenance:[
+    {key:'node',      label:'📷 Node inspection closeup'},
+    {key:'connectors',label:'📷 Fiber connectors'},
+    {key:'meter',     label:'📷 Signal meter reading'},
+    {key:'final',     label:'📷 Final state after cleaning'},
+  ],
+  survey:[
+    {key:'overview',  label:'📷 Site overview'},
+    {key:'infra',     label:'📷 Existing infrastructure / conduit'},
+    {key:'proposed',  label:'📷 Proposed AP locations marked'},
+  ],
+};
+
+// CHANGE #6: Store captured photos with metadata
+const capturedPhotos = {}; // {orderId: {photoKey: {ts, lat, lng, zip, lot}}}
+
+const extraFaults=[
+  {type:'fault',   siteType:'mhc',    region:'AZ', title:'Lot 88 — No internet, resident escalation',        location:'Las Quintas',   partner:'Cobblestone Communities', address:'10442 N Frontage Rd, Yuma, AZ 85365',    equip:['Laptop','Hotspot','Ethernet cables','AnyDesk'],            task:'Locate Lot 88. Power cycle devices. AnyDesk for remote engineer.',                        lng:-114.62, lat:32.70},
+  {type:'install', siteType:'mhc',    region:'AZ', title:'New fiber-to-lot — Lots 5, 6, 7',                  location:'Dorado Canyon', partner:'Cobblestone Communities', address:'3300 E Broadway Rd, Mesa, AZ 85204',      equip:['AP unit','Fiber 100ft','RJ45 crimper','Contract forms'],  task:'Install fiber at 3 new lots. Customer signatures required.',                              lng:-111.80, lat:33.40},
+  {type:'survey',  siteType:'natpark', region:'CA', title:'Pre-install survey — Valley Visitor Center WiFi', location:'Death Valley National Park', partner:'U.S. NPS', address:'Furnace Creek Visitor Center, Death Valley, CA 92328', equip:['Laptop','Camera','GPS','Signal meter'], task:'Survey Visitor Center area for broadband expansion. AccessParks sole NPS provider.',  lng:-116.87, lat:36.46},
+];
+
+// ==================== UTILS ====================
+function chipClass(s){return {critical:'chip-critical',assigned:'chip-assigned',inprogress:'chip-inprogress',done:'chip-done'}[s]||'';}
+function chipLabel(s){return {critical:'UNASSIGNED',assigned:'ASSIGNED TO STS',inprogress:'TECH IN FIELD',done:'COMPLETED'}[s]||s.toUpperCase();}
+function now(){return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
+
+// ==================== FILTER ====================
+function setFilter(type, el){
+  activeFilter = type;
+  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderList();
+}
+
+function setRegion(region, el){
+  activeRegion = region;
+  document.querySelectorAll('.region-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  renderList();
+}
+
+// ==================== RENDER LIST ====================
+function renderList(){
+  let visible = faults;
+  if(activeFilter !== 'all') visible = visible.filter(f=>f.type===activeFilter);
+  if(activeRegion !== 'all'){
+    if(activeRegion==='CA-NP') visible = visible.filter(f=>f.siteType==='natpark');
+    else visible = visible.filter(f=>f.region===activeRegion);
+  }
+  const ST = SITE_TYPES;
+  document.getElementById('fault-list').innerHTML=visible.map(f=>{
+    const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+    const st=ST[f.siteType]||{icon:'📍',cls:'site-mhc',label:'SITE'};
+    const ctr=f.contractor?`<span class="contractor-badge ${CONTRACTORS[f.contractor]?.cls||'cb-none'}">${f.contractor}</span>`:'';
+    return `<div class="fault-card ${f.status}${f.id===selectedId?' sel':''}" onclick="selectFault('${f.id}')">
+      <div class="fc-top"><div class="fc-id">${f.id}</div><span class="chip ${chipClass(f.status)}">${{critical:'UNASSIGNED',assigned:'ASSIGNED',inprogress:'IN FIELD',done:'DONE'}[f.status]}</span></div>
+      <div style="display:flex;gap:5px;align-items:center;margin-bottom:3px">
+        <span style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:${ot.color}">${ot.icon} ${ot.label}</span>
+        <span class="site-chip ${st.cls}">${st.icon} ${st.label}</span>
+        ${ctr}
+      </div>
+      <div class="fc-title">${f.title}</div>
+      <div class="fc-loc">📍 ${f.location} · ${f.address.split(',').slice(-2).join(',').trim()}</div>
+    </div>`;
+  }).join('');
+  if(!visible.length) document.getElementById('fault-list').innerHTML=`<div style="padding:20px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">No orders match this filter</div>`;
+  updateStats();
+  renderPins();
+  renderSTS();
+  renderTech();
+}
+
+function updateStats(){
+  const c=s=>faults.filter(f=>f.status===s).length;
+  document.getElementById('ms-crit').textContent=c('critical');
+  document.getElementById('ms-asgn').textContent=c('assigned');
+  document.getElementById('ms-inprog').textContent=c('inprogress');
+  document.getElementById('ms-done').textContent=c('done');
+  const n=c('critical');
+  document.getElementById('alert-pill').textContent=n>0?`⚡ ${n} UNASSIGNED FAULT${n>1?'S':''}`:'✓ ALL ASSIGNED';
+  document.getElementById('nav-badge').textContent=faults.filter(f=>f.status!=='done').length;
+  document.getElementById('co-pending').textContent=c('assigned');
+  document.getElementById('co-infield').textContent=c('inprogress');
+  document.getElementById('co-done').textContent=c('done');
+  const billableH=faults.filter(f=>f.status==='done').reduce((s,f)=>s+(f.hours||0)+(f.travelHours||0.5),0);
+  document.getElementById('co-rev').textContent=billableH+'h';
+}
+
+// ==================== MAP (D3 + TopoJSON) ====================
+async function initMap(){
+  const mapEl=document.querySelector('.disp-map');
+  const W=mapEl.clientWidth, H=mapEl.clientHeight;
+  const svg=d3.select('#us-map').attr('width',W).attr('height',H);
+
+  mapProjection = d3.geoAlbersUsa().scale(W*0.95).translate([W/2, H/2]);
+  const path = d3.geoPath().projection(mapProjection);
+
+  // Subtle grid background
+  const defs=svg.append('defs');
+  defs.append('filter').attr('id','glow-r').html('<feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>');
+  defs.append('filter').attr('id','glow-g').html('<feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>');
+  defs.append('filter').attr('id','glow-b').html('<feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>');
+  defs.append('filter').attr('id','glow-o').html('<feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>');
+
+  try{
+    const us=await d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+    const states=topojson.feature(us,us.objects.states);
+    const borders=topojson.mesh(us,us.objects.states,(a,b)=>a!==b);
+
+    svg.append('g').selectAll('path').data(states.features).join('path')
+      .attr('class','state-fill').attr('d',path);
+    svg.append('path').datum(borders).attr('class','state-borders').attr('d',path);
+
+    // Coverage zones — national: AZ (Cobblestone), FL (Jellystone/KOA), MT/WY (National Parks)
+    const zones=[
+      {name:'STS — ARIZONA / COBBLESTONE',  cx:-112.5, cy:33.4, rx:3.5, ry:2.5, color:'rgba(0,229,160,'},
+      {name:'SWFS — FLORIDA / RV PARKS',    cx:-81.5,  cy:28.5, rx:3.2, ry:2.8, color:'rgba(192,132,252,'},
+      {name:'SWFS — NATIONAL PARKS (MT/WY)',cx:-111.5, cy:45.5, rx:4.5, ry:3.5, color:'rgba(45,122,255,'},
+    ];
+    zones.forEach(z=>{
+      const c=mapProjection([z.cx,z.cy]);
+      const ex=mapProjection([z.cx+z.rx,z.cy]);
+      const ey=mapProjection([z.cx,z.cy-z.ry]);
+      if(!c||!ex||!ey) return;
+      const col=z.color||'rgba(0,229,160,';
+      svg.append('ellipse')
+        .attr('cx',c[0]).attr('cy',c[1])
+        .attr('rx',Math.abs(ex[0]-c[0])).attr('ry',Math.abs(ey[1]-c[1]))
+        .style('fill',col+'0.04)').style('stroke',col+'0.22)').style('stroke-width','1')
+        .style('stroke-dasharray','5 4');
+      svg.append('text').attr('class','coverage-label')
+        .attr('x',c[0]).attr('y',c[1]+Math.abs(ey[1]-c[1])+13)
+        .attr('text-anchor','middle').attr('fill',col+'0.4)').text(z.name);
+    });
+  } catch(e){
+    // Fallback: render placeholder text if CDN unreachable
+    svg.append('text').attr('x',W/2).attr('y',H/2)
+      .attr('text-anchor','middle').attr('fill','rgba(0,229,160,.2)')
+      .attr('font-family','IBM Plex Mono').attr('font-size','13')
+      .text('Map data loading — check internet connection');
+  }
+
+  svg.append('g').attr('id','tech-layer');
+  svg.append('g').attr('id','pins-layer');
+  renderPins();
+}
+
+// ==================== PINS ====================
+function renderPins(){
+  const layer=d3.select('#pins-layer');
+  if(!layer.node()) return;
+  layer.selectAll('*').remove();
+  if(!mapProjection) return;
+
+  // CHANGE #5: Technician location pins (orange squares)
+  const techLayer=d3.select('#tech-layer');
+  if(techLayer.node()){
+    techLayer.selectAll('*').remove();
+    technicians.forEach(t=>{
+      if(!t.lng||!t.lat) return;
+      const coords=mapProjection([t.lng,t.lat]);
+      if(!coords) return;
+      const [x,y]=coords;
+      const isOff=t.status==='off';
+      const col=isOff?'#3a4050':'#ff6b35';
+      const g=techLayer.append('g').attr('transform',`translate(${x},${y})`);
+      if(t.status==='available'){
+        g.append('circle').attr('r',10).attr('fill','#ff6b35').attr('opacity',0.15)
+          .attr('class','pin-pulse-b');
+      }
+      g.append('rect').attr('x',-6).attr('y',-6).attr('width',12).attr('height',12)
+        .attr('rx',2).attr('fill',col).attr('opacity',isOff?0.35:1)
+        .attr('filter',isOff?'':'url(#glow-o)');
+      g.append('text').attr('text-anchor','middle').attr('dy','3.5px')
+        .attr('font-size','8px').attr('fill','white').attr('font-family','sans-serif').text('T');
+      g.append('text').attr('text-anchor','middle').attr('dy','-9px')
+        .attr('font-size','7px').attr('fill',isOff?'#555':col)
+        .attr('font-family','IBM Plex Mono').text(t.name.split(' ')[0]);
+    });
+  }
+
+  const statusColor={critical:'#ff2d2d',assigned:'#2d7aff',inprogress:'#00e5a0',done:'#4a5568'};
+  const glowFilter={critical:'glow-r',assigned:'glow-b',inprogress:'glow-g',done:''};
+
+  faults.forEach(f=>{
+    const coords=mapProjection([f.lng,f.lat]);
+    if(!coords) return;
+    const [x,y]=coords;
+    const sc=statusColor[f.status];
+    const gf=glowFilter[f.status];
+    const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+    const isDone=f.status==='done';
+
+    const g=layer.append('g').attr('class','map-pin')
+      .attr('transform',`translate(${x},${y})`)
+      .on('click',()=>selectFault(f.id))
+      .on('mouseenter',(e)=>showTip(e,f.id))
+      .on('mouseleave',hideTip);
+
+    if(f.status==='critical'){
+      g.append('circle').attr('class','pin-pulse').attr('r',12).attr('fill',sc).attr('opacity',0.15);
+    } else if(f.status==='assigned'){
+      g.append('circle').attr('class','pin-pulse-b').attr('r',12).attr('fill',sc).attr('opacity',0.12);
+    }
+
+    g.append('circle').attr('r',10).attr('fill',sc).attr('opacity',isDone?0.45:1)
+      .attr('filter',gf?`url(#${gf})`:'');
+    // White center dot
+    g.append('circle').attr('r',3.5).attr('fill','white').attr('opacity',isDone?0.5:0.9);
+    // Order type icon
+    g.append('text').attr('text-anchor','middle').attr('dy','-8px')
+      .attr('font-size','10px').attr('fill',isDone?'#555':ot.color)
+      .attr('font-family','sans-serif').text(ot.icon);
+  });
+}
+
+function showTip(e,id){
+  const f=faults.find(x=>x.id===id);
+  const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+  const t=document.getElementById('map-tip');
+  document.getElementById('tt-id').textContent=f.id+' · '+f.created;
+  document.getElementById('tt-type').innerHTML=`<span style="color:${ot.color};font-family:'IBM Plex Mono',monospace;font-size:9px">${ot.icon} ${ot.label}</span>`;
+  document.getElementById('tt-title').textContent=f.title;
+  document.getElementById('tt-loc').textContent='📍 '+f.address;
+  const r=document.querySelector('.disp-map').getBoundingClientRect();
+  t.style.left=(e.clientX-r.left+16)+'px';t.style.top=(e.clientY-r.top-20)+'px';
+  t.classList.add('vis');
+}
+function hideTip(){document.getElementById('map-tip').classList.remove('vis');}
+
+// ==================== SELECT FAULT (ZIAD VIEW) ====================
+function selectFault(id){
+  selectedId=id;
+  const f=faults.find(x=>x.id===id);
+  renderList();
+  const panel=document.getElementById('disp-right');
+  panel.classList.remove('hide');
+  const st=SITE_TYPES[f.siteType]||{icon:'📍',cls:'site-mhc',label:'SITE'};
+  document.getElementById('dr-id').innerHTML=`${f.id} · ${f.created} &nbsp;<span class="site-chip ${st.cls}">${st.icon} ${st.label}</span>`;
+  document.getElementById('dr-title').textContent=f.title;
+  const badge=document.getElementById('dr-badge');
+  badge.className='chip '+chipClass(f.status);
+  badge.textContent=chipLabel(f.status);
+  renderDetailBody(f);
+}
+
+function renderDetailBody(f){
+  const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+  const equip=(f.equipment||f.equip||[]).map(e=>`<span class="equip-chip">${e}</span>`).join('');
+  const st=SITE_TYPES[f.siteType]||{icon:'📍',label:'Site'};
+  const ctrInfo=f.contractor?CONTRACTORS[f.contractor]:null;
+  const steps=[
+    {lbl:'Order received by AccessParks',sub:f.created,done:true},
+    {lbl:`Assigned to ${f.contractor||'contractor'}`,sub:f.contractor?`${ctrInfo?.name||f.contractor} · ${ctrInfo?.region||''}`:'',done:['assigned','inprogress','done'].includes(f.status),active:f.status==='assigned'},
+    {lbl:'Contractor dispatches technician',sub:f.assignedTech||'',done:['inprogress','done'].includes(f.status),active:f.status==='inprogress'},
+    {lbl:'Work completed on site',sub:f.completedAt||'',done:f.status==='done'},
+    {lbl:'AccessParks receives work report',sub:f.status==='done'?'Auto-generated PDF':'',done:f.status==='done'},
+  ];
+  const tl=steps.map((s,i)=>`
+    <div class="tl-step">
+      <div class="tl-left">
+        <div class="tl-dot ${s.done?'done':s.active?'active':''}"></div>
+        ${i<steps.length-1?`<div class="tl-line ${s.done?'done':''}"></div>`:''}
+      </div>
+      <div class="tl-content"><div class="tl-lbl">${s.lbl}</div>${s.sub?`<div class="tl-sub">${s.sub}</div>`:''}</div>
+    </div>`).join('');
+
+  let action='';
+  if(f.status==='critical'){
+    // Pick best contractor based on site region
+    const defaultCtr = (f.region==='FL'||f.siteType==='natpark') ? 'SWFS' : 'STS';
+    action=`<div class="assign-block">
+      <div class="assign-ttl">⚡ NOTIFY CONTRACTOR</div>
+      <div class="ctr-opt ${defaultCtr==='STS'?'sel':''}" onclick="pickCont('STS',this)">
+        <div class="cot-dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>
+        <div><div class="cot-name">STS Corp.</div><div style="font-size:10px;color:var(--muted)">P1 · Arizona / Cobblestone MHCs</div></div>
+        <div class="cot-meta">STS</div>
+      </div>
+      <div class="ctr-opt ${defaultCtr==='SWFS'?'sel':''}" onclick="pickCont('SWFS',this)">
+        <div class="cot-dot" style="background:var(--purple);box-shadow:0 0 5px var(--purple)"></div>
+        <div><div class="cot-name">Southwest Field Services</div><div style="font-size:10px;color:var(--muted)">P1 · Florida / National Parks</div></div>
+        <div class="cot-meta">SWFS</div>
+      </div>
+      <button class="btn-primary" onclick="doAssign('${f.id}')">SEND TO CONTRACTOR →</button>
+      <button class="btn-secondary" onclick="closeDetail()">Close</button>
+    </div>`;
+  } else if(f.status==='assigned'){
+    const ctrInfo=CONTRACTORS[f.contractor]||{name:f.contractor};
+    action=`<div class="assigned-block">
+      <div class="assigned-ttl">✓ SENT TO ${f.contractor} — Waiting for tech dispatch</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px">${ctrInfo.name} · ${ctrInfo.region||''}</div>
+      <div style="font-size:11px;color:var(--muted)">Response window: <span style="color:var(--yellow);font-family:'IBM Plex Mono',monospace">1:48:00</span> remaining</div>
+    </div>
+    <button class="btn-primary" style="background:var(--blue)" onclick="doStsDispatch('${f.id}')">▶ SIM: ${f.contractor} Dispatches Tech</button>
+    <button class="btn-danger" onclick="doReject('${f.id}')">SIM: ${f.contractor} Rejects → Escalate</button>`;
+  } else if(f.status==='inprogress'){
+    action=`<div style="background:rgba(0,229,160,.05);border:1px solid rgba(0,229,160,.2);border-radius:6px;padding:13px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.5s infinite"></div>
+        <span style="color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700">TECH ON SITE</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted)">${f.assignedTech} · ${f.address.split(',')[0]}</div>
+    </div>
+    <button class="btn-primary" onclick="doComplete('${f.id}')">▶ SIM: Tech Marks Fault Resolved ✓</button>`;
+  } else if(f.status==='done'){
+    const wr=f.workReport||{};
+    const travelH=f.travelHours||0.5;
+    const totalH=(f.hours||0)+travelH;
+    const isWeekend=[0,6].includes(new Date().getDay());
+    function calcH(a,d){if(!a||!d)return '—';const[ah,am]=a.split(':').map(Number);const[dh,dm]=d.split(':').map(Number);const m=(dh*60+dm)-(ah*60+am);if(m<=0)return '—';const h=Math.floor(m/60),mn=m%60;return h>0?(mn>0?h+'h '+mn+'m':h+'h'):mn+'m';}
+    action=`<div class="time-summary">
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:8px">TIME SUMMARY · ${f.id}</div>
+      <div class="time-row"><span class="time-key">On-site window</span><span class="time-val">${wr.arrival||'—'} → ${wr.departure||'—'}${wr.arrival&&wr.departure?' ('+calcH(wr.arrival,wr.departure)+')':''}</span></div>
+      <div class="time-row"><span class="time-key">On-site hours</span><span class="time-val">${f.hours}h</span></div>
+      <div class="time-row"><span class="time-key">Travel time</span><span class="time-val">${travelH}h</span></div>
+      <div class="time-row"><span class="time-key">Total billable</span><span class="time-val" style="color:var(--green)">${totalH}h</span></div>
+      <div class="time-row"><span class="time-key">Technicians</span><span class="time-val">${wr.numTechs||'1'}</span></div>
+      <div class="time-row"><span class="time-key">Weekend</span><span class="time-val">${isWeekend?'<span style="color:var(--yellow)">YES ⚠</span>':'No'}</span></div>
+      <div style="margin-top:8px;font-size:10px;color:var(--muted);font-style:italic">$ amounts not included — apply AccessParks rate table</div>
+    </div>
+    <button class="btn-download" onclick="downloadReport('${f.id}')">⬇ DOWNLOAD WORK REPORT (PDF)</button>`;
+  }
+
+  document.getElementById('dr-body').innerHTML=`
+    <div class="info-row"><div class="info-lbl">Order Type</div><span class="otype-tag ${ot.tagCls}">${ot.icon} ${ot.label}</span></div>
+    <div class="info-row"><div class="info-lbl">Site Type</div><span class="site-chip ${st.cls}">${st.icon} ${st.label}</span></div>
+    ${f.partner?`<div class="info-row"><div class="info-lbl">Partner</div><div class="info-val" style="font-weight:600">${f.partner}</div></div>`:''}
+    <div class="info-row"><div class="info-lbl">Address</div><div class="info-val">${f.address}</div></div>
+    <div class="info-row"><div class="info-lbl">Task</div><div class="info-val">${f.task}</div></div>
+    <div class="info-row"><div class="info-lbl">Required Equipment</div><div class="equip-wrap">${equip}</div></div>
+    <div class="hdivider"></div>
+    ${action}
+    <div class="hdivider"></div>
+    <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:10px">TIMELINE</div>
+    <div class="tl">${tl}</div>`;
+}
+
+// ==================== ZIAD ACTIONS ====================
+function pickCont(name,el){selectedContractor=name;document.querySelectorAll('.ctr-opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');}
+
+function doAssign(id){
+  const f=faults.find(x=>x.id===id);
+  f.status='assigned'; f.contractor=selectedContractor;
+  renderList(); selectFault(id);
+  toast(`✓ ${f.id} sent to ${f.contractor} · 2h response window`);
+}
+
+function doStsDispatch(id){
+  const f=faults.find(x=>x.id===id);
+  f.status='inprogress';
+  if(f.contractor==='SWFS'){
+    f.assignedTech='Ramon V.';
+    const t=technicians.find(t=>t.name==='Ramon V.'); if(t) t.status='busy';
+  } else {
+    f.assignedTech='Carlos M.';
+    const t=technicians.find(t=>t.name==='Carlos M.'); if(t) t.status='busy';
+  }
+  renderList(); selectFault(id);
+  toast(`📍 ${f.contractor} dispatched ${f.assignedTech} → en route to ${f.location}`);
+}
+
+function doComplete(id){
+  const f=faults.find(x=>x.id===id);
+  const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+  f.status='done'; f.completedAt=now();
+  f.workReport={arrival:'', departure:now(), notes:'Resolved on-site', details:'Work completed by tech.'};
+  const t=technicians.find(tx=>tx.name===f.assignedTech);
+  if(t){t.status='available'; t.orders++;}
+  renderList(); renderPins(); selectFault(id); renderSTS(); renderTech();
+  toast(`✅ Order resolved · Work report sent to AccessParks`);
+}
+
+function doReject(id){
+  const f=faults.find(x=>x.id===id);
+  const alt = f.contractor==='STS' ? 'SWFS' : 'STS';
+  f.contractor=alt;
+  f.status='assigned';
+  renderList(); selectFault(id);
+  toast(`⚠ ${alt==='SWFS'?'STS':'SWFS'} rejected · Auto-escalated to ${CONTRACTORS[alt]?.name||alt}`,true);
+}
+
+// CHANGE #1: Download Work Report
+function downloadReport(id){
+  const f=faults.find(x=>x.id===id);
+  if(!f) return;
+  const wr=f.workReport||{};
+  const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+  const travelH=f.travelHours||0.5;
+  const photos=capturedPhotos[id]||{};
+  const checklist=(PHOTO_CHECKLISTS[f.type]||[]).map(p=>{
+    const cap=photos[p.key];
+    return `<tr><td style="padding:6px 10px;border:1px solid #ddd">${p.label}</td>
+      <td style="padding:6px 10px;border:1px solid #ddd;color:${cap?'#006644':'#cc0000'};font-weight:700">${cap?'✓ Captured':'MISSING'}</td>
+      <td style="padding:6px 10px;border:1px solid #ddd;font-size:11px">${cap?cap.ts:''}</td>
+      <td style="padding:6px 10px;border:1px solid #ddd;font-size:10px">${cap?cap.lat+', '+cap.lng:''}</td></tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Work Report ${f.id}</title>
+  <style>body{font-family:Arial,sans-serif;max-width:720px;margin:40px auto;color:#1a1a1a;font-size:13px}
+  h1{font-size:22px;font-weight:900;color:#006644;letter-spacing:2px}
+  h2{font-size:11px;letter-spacing:2px;color:#555;margin:22px 0 10px;border-bottom:2px solid #006644;padding-bottom:4px;text-transform:uppercase}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .f{background:#f6f6f6;border-radius:4px;padding:9px 12px}
+  .l{font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+  .v{font-size:13px;font-weight:700}
+  .notice{background:#fffbea;border:1px solid #f59e0b;border-radius:4px;padding:10px;font-size:12px;margin:12px 0}
+  .ok{color:#006644}.no{color:#cc0000}
+  table{width:100%;border-collapse:collapse}th{background:#006644;color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+  @media print{.no-print{display:none}}</style></head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+    <div><h1>FIELDSYNC</h1><div style="font-size:11px;color:#888">AccessParks Daily Vendor Work Report</div></div>
+    <div style="text-align:right"><div style="font-size:9px;color:#888">TICKET NUMBER</div><div style="font-size:20px;font-weight:900;color:#006644">${f.id}</div><div style="font-size:9px;color:#cc0000">Must appear on STS invoice</div></div>
+  </div>
+  <h2>General Information</h2>
+  <div class="grid">
+    <div class="f"><div class="l">Date</div><div class="v">${new Date().toLocaleDateString()}</div></div>
+    <div class="f"><div class="l">Vendor</div><div class="v">STS Corp.</div></div>
+    <div class="f"><div class="l">Technician</div><div class="v">${f.assignedTech||'Carlos M.'}</div></div>
+    <div class="f"><div class="l">AP Engineer</div><div class="v">${f.apEngineer||'—'}</div></div>
+    <div class="f"><div class="l">Time Arrival</div><div class="v">${wr.arrival||'—'}</div></div>
+    <div class="f"><div class="l">Time Departing</div><div class="v">${wr.departure||'—'}</div></div>
+    <div class="f"><div class="l">On-Site Hours</div><div class="v">${f.hours}h</div></div>
+    <div class="f"><div class="l">Technicians</div><div class="v">${wr.numTechs||'1'}</div></div>
+  </div>
+  <h2>Time Summary (for invoice)</h2>
+  <div class="grid">
+    <div class="f"><div class="l">On-site</div><div class="v">${f.hours}h</div></div>
+    <div class="f"><div class="l">Travel</div><div class="v">${travelH}h</div></div>
+    <div class="f"><div class="l">Total Billable</div><div class="v ok">${f.hours+travelH}h</div></div>
+    <div class="f"><div class="l">Order Type</div><div class="v">${ot.icon} ${ot.label}</div></div>
+  </div>
+  <div class="notice">⚠ Dollar amounts are NOT included. STS applies AccessParks rate table to calculate invoice total based on hours, order type, and weekend/weekday multiplier.</div>
+  <h2>Notes</h2><div class="f" style="min-height:36px">${wr.notes||'—'}</div>
+  <h2>Work Completed</h2><div class="f" style="white-space:pre-wrap;min-height:50px">${wr.details||'—'}</div>
+  ${checklist?`<h2>Photo Documentation</h2>
+  <table><tr><th>Photo Required</th><th>Status</th><th>Timestamp</th><th>Coordinates</th></tr>${checklist}</table>`:''}
+  <h2>Site</h2><div class="f">${f.address}</div>
+  <div style="margin-top:40px;border-top:2px solid #006644;padding-top:10px;display:flex;justify-content:space-between;font-size:10px;color:#888">
+    <span>Ticket: ${f.id} · Must appear on invoice</span><span>Generated by FieldSync · ${new Date().toLocaleString()}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:40px">
+    <div style="border-top:1px solid #333;padding-top:6px;font-size:11px;text-align:center">Technician Signature</div>
+    <div style="border-top:1px solid #333;padding-top:6px;font-size:11px;text-align:center">AP Engineer Confirmation</div>
+  </div>
+  <script>window.print();<\/script></body></html>`;
+  const w=window.open('','_blank','width=820,height=700');
+  if(w){w.document.write(html);w.document.close();}
+  toast('📄 Work Report opened — Print or Save PDF');
+}
+
+// CHANGE #6: Capture photo with geolocation + timestamp overlay
+function capturePhoto(orderId,photoKey,labelText){
+  if(!capturedPhotos[orderId]) capturedPhotos[orderId]={};
+  const f=faults.find(x=>x.id===orderId);
+  const ts=new Date().toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  // Simulate GPS near the order location (in real app: navigator.geolocation)
+  const baseLat=f?f.lat:39.5, baseLng=f?f.lng:-121.5;
+  const lat=(baseLat+(Math.random()-.5)*0.0002).toFixed(5);
+  const lng=(baseLng+(Math.random()-.5)*0.0002).toFixed(5);
+  const zipCode=f&&f.address?f.address.match(/\d{5}/)?.[0]||'95966':'95966';
+  const lot=f&&f.address?f.address.split(',')[0]:'Site';
+  capturedPhotos[orderId][photoKey]={ts,lat,lng,zip:zipCode,lot};
+  toast(`📷 ${labelText.substring(0,40)}... · GPS embedded`);
+  renderTech();
+}
+
+function closeDetail(){selectedId=null;document.getElementById('disp-right').classList.add('hide');renderList();}
+
+function triggerNewFault(){
+  faultCounter++;
+  const t=extraFaults[faults.length%extraFaults.length];
+  const ot=ORDER_TYPES[t.type]||ORDER_TYPES.fault;
+  faults.unshift({
+    id:`AS-${faultCounter}`,type:t.type,siteType:t.siteType||'mhc',region:t.region||'AZ',
+    title:t.title,location:t.location,partner:t.partner||'',address:t.address,
+    equipment:t.equip||[],task:t.task,status:'critical',
+    lng:t.lng+(Math.random()-.5)*.04,lat:t.lat+(Math.random()-.5)*.03,
+    contractor:null,assignedTech:null,completedAt:null,photos:0,
+    hours:3.5,travelHours:0.5,mopItems:[],created:now(),workReport:null,
+    apEngineer:'Marcus Prieto',apPhone:'858-997-2108',
+  });
+  renderList(); selectFault(faults[0].id);
+  toast(`⚡ NEW ${ot.label} — ${faults[0].id} · ${faults[0].location}`,true);
+}
+
+// ==================== STS DASHBOARD ====================
+function stsNav(section, el){
+  document.querySelectorAll('.sts-nav-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.sts-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sts-'+section).classList.add('active');
+}
+
+function renderSTS(){
+  updateStats();
+
+  // Orders rows
+  document.getElementById('sts-orders-rows').innerHTML=faults.map(f=>{
+    const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;
+    return `<div class="tbl-row orders-cols" onclick="switchView('dispatcher');selectFault('${f.id}')">
+      <div class="cell-id">${f.id}</div>
+      <div><span style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:${ot.color}">${ot.icon} ${ot.label}</span></div>
+      <div>${f.title}</div>
+      <div style="font-size:11px;color:var(--muted)">${f.address.split(',')[0]}</div>
+      <div><span class="chip ${chipClass(f.status)}">${chipLabel(f.status)}</span></div>
+      <div>${f.status==='assigned'?`<button onclick="event.stopPropagation();doStsDispatch('${f.id}')" style="background:var(--blue);color:#fff;border:none;padding:5px 10px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;font-weight:700">DISPATCH TECH</button>`:f.status==='inprogress'?`<span style="color:var(--green);font-family:'IBM Plex Mono',monospace;font-size:10px">Carlos M. ●</span>`:f.status==='done'?`<button onclick="event.stopPropagation();downloadReport('${f.id}')" style="background:transparent;color:var(--blue);border:1px solid rgba(45,122,255,.3);padding:4px 9px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;font-weight:700">⬇ REPORT</button>`:`<span style="color:var(--muted);font-size:11px">—</span>`}</div>
+    </div>`;}).join('');
+
+  // Tech roster
+  document.getElementById('tech-roster-rows').innerHTML=technicians.map(t=>`
+    <div class="tbl-row tech-cols">
+      <div class="tech-info">
+        <div class="tech-avatar">${t.name.split(' ').map(n=>n[0]).join('')}</div>
+        <div><div class="tech-name">${t.name}</div><div class="tech-zone" style="font-size:10px;color:var(--muted)">${t.id}</div></div>
+      </div>
+      <div style="font-size:12px">${t.specialty}</div>
+      <div style="font-size:11px;color:var(--muted)">${t.zone}</div>
+      <div style="display:flex;align-items:center;gap:6px"><div class="avail-dot ${{available:'avail-yes',busy:'avail-busy',off:'avail-off'}[t.status]}"></div><span style="font-size:11px">${{available:'Available',busy:'In Field',off:'Off Duty'}[t.status]}</span></div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px">${t.orders}</div>
+    </div>`).join('');
+
+  const done=faults.filter(f=>f.status==='done');
+  const totalH=done.reduce((s,f)=>s+(f.hours||0),0);
+  document.getElementById('inv-total').textContent=totalH+'h';
+  document.getElementById('inv-total-2').textContent=totalH+'h';
+  document.getElementById('inv-rows').innerHTML=done.length>0
+    ?done.map(f=>{const ot=ORDER_TYPES[f.type]||ORDER_TYPES.fault;return `<div class="inv-row"><span>${f.id} · ${ot.icon} ${ot.label} — ${f.title.substring(0,28)}...</span><span style="font-family:'IBM Plex Mono',monospace">${f.hours}h + ${f.travelHours||0.5}h travel</span></div>`;}).join('')
+    :`<div style="padding:16px;text-align:center;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px">No completed orders yet</div>`;
+
+  // Payouts
+  document.getElementById('payout-rows').innerHTML=technicians.map(t=>{
+    const hrs=t.orders*3.5;
+    const pay=t.orders*245;
+    return `<div class="tbl-row invoice-cols">
+      <div class="tech-info"><div class="tech-avatar">${t.name.split(' ').map(n=>n[0]).join('')}</div><div class="tech-name">${t.name}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${t.zone}</div>
+      <div style="font-family:'IBM Plex Mono',monospace">${t.orders}</div>
+      <div style="font-family:'IBM Plex Mono',monospace">${hrs}h</div>
+      <div class="cell-amount" style="color:var(--green)">$${pay}</div>
+    </div>`;}).join('');
+}
+
+// ==================== TECH VIEW (CHANGES #3, #4, #6) ====================
+function renderTech(){
+  const body=document.getElementById('tech-phone-body');
+  const active=faults.find(f=>f.assignedTech==='Carlos M.' && f.status==='inprogress');
+  const done=faults.filter(f=>f.assignedTech==='Carlos M.' && f.status==='done');
+
+  if(active){
+    const ot=ORDER_TYPES[active.type]||ORDER_TYPES.fault;
+
+    // CHANGE #4: Install flow shows lot list first
+    if(active.type==='install' && active.lots){
+      const completedLots=active.lots.filter(l=>l.status==='done').length;
+      const currentLot=active.lots.find(l=>l.status==='inprogress')||active.lots.find(l=>l.status==='pending');
+
+      if(currentLot){
+        // Show photo checklist for current lot
+        renderInstallLot(body,active,currentLot,completedLots);
+      } else {
+        // All lots done
+        body.innerHTML=`<div class="done-state">
+          <div class="done-icon">✅</div>
+          <div class="done-title">All Lots Done!</div>
+          <div class="done-id">${active.id}</div>
+          <div class="done-box">
+            <div class="done-box-lbl">COMPLETED</div>
+            <div class="done-box-val" style="color:var(--green)">${active.lots.length} / ${active.lots.length} lots installed</div>
+          </div>
+        </div>
+        <button class="complete-btn" onclick="submitInstallBatch('${active.id}')">📋 SUBMIT ALL & CLOSE</button>`;
+      }
+      return;
+    }
+
+    // CHANGE #3: Fault/standard flow with photo checklist
+    renderFaultView(body,active,ot);
+
+  } else if(faults.some(f=>f.status==='assigned')){
+    const pending=faults.find(f=>f.status==='assigned');
+    body.innerHTML=`<div class="tech-idle" style="justify-content:flex-start;padding-top:40px">
+      <div class="tech-idle-icon">📱</div>
+      <div class="tech-idle-title">Assignment incoming</div>
+      <div class="tech-idle-sub" style="margin-bottom:20px">STS is dispatching you</div>
+      <div style="background:var(--panel2);border:1px solid rgba(45,122,255,.2);border-radius:10px;padding:16px;width:100%;text-align:left">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--blue);letter-spacing:2px;margin-bottom:6px">PENDING · ${pending.id}</div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:3px">${pending.title}</div>
+        <div style="font-size:11px;color:var(--muted)">${pending.address}</div>
+      </div>
+    </div>`;
+  } else if(done.length>0){
+    const last=done[done.length-1];
+    const wr=last.workReport||{};
+    body.innerHTML=`<div class="done-state">
+      <div class="done-icon">✅</div>
+      <div class="done-title">Ticket Closed</div>
+      <div class="done-id">${last.id} · ${last.completedAt}</div>
+      <div class="done-box" style="text-align:left">
+        <div class="done-box-lbl">SITE</div>
+        <div class="done-box-val" style="margin-bottom:8px">${last.location}</div>
+        ${wr.arrival?`<div class="done-box-lbl">ON-SITE TIME</div>
+        <div class="done-box-val" style="margin-bottom:8px;color:var(--green)">${wr.arrival} → ${wr.departure||'—'}</div>`:''}
+        <div class="done-box-lbl">STATUS</div>
+        <div class="done-box-val" style="color:var(--green)">✓ Report submitted to STS</div>
+      </div>
+      <div class="done-note">Work report filed · Ticket ${last.id}<br>Payout processed end of month.</div>
+    </div>`;
+  } else {
+    body.innerHTML=`<div class="tech-idle">
+      <div class="tech-idle-icon">☕</div>
+      <div class="tech-idle-title">No assignments yet</div>
+      <div class="tech-idle-sub">STS will notify you<br>when a job is dispatched</div>
+    </div>`;
+  }
+}
+
+// CHANGE #3+#6: Render fault view with blocking photo checklist
+function renderFaultView(body,f,ot){
+  const photos=capturedPhotos[f.id]||{};
+  const checklist=PHOTO_CHECKLISTS[f.type]||PHOTO_CHECKLISTS.fault;
+  const captured=checklist.filter(p=>photos[p.key]).length;
+  const allDone=captured===checklist.length;
+
+  const photoHTML=checklist.map(p=>{
+    const cap=photos[p.key];
+    return `<div class="photo-step${cap?' captured':''}">
+      <div style="flex:1">
+        <div class="photo-step-label">${p.label}</div>
+        ${cap?`<div class="photo-meta">✓ ${cap.ts}<br>GPS: ${cap.lat}, ${cap.lng} · ZIP: ${cap.zip}</div>`:''}
+      </div>
+      <button class="photo-btn${cap?' done-btn':''}" onclick="capturePhoto('${f.id}','${p.key}','${p.label}')">${cap?'✓':'📷'}</button>
+    </div>`;
+  }).join('');
+
+  const mopItems=(f.mopItems||[f.task]);
+  const mopHTML=mopItems.map((s,i)=>`<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+    <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);flex-shrink:0">${i+1}</div>
+    <div style="font-size:11px;line-height:1.5">${s}</div>
+  </div>`).join('');
+
+  body.innerHTML=`
+    <div style="background:rgba(255,45,45,.06);border-bottom:1px solid rgba(255,45,45,.2);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 1s infinite"></div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--red);letter-spacing:1px">ON-SITE · ${ot.icon} ${ot.label}</div>
+      </div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--yellow);font-weight:700">${f.id}</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:12px 14px 8px">
+      <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:800;margin-bottom:2px">${f.location}</div>
+        <div style="font-size:11px;color:var(--muted)">${f.address}</div>
+        ${f.mhp?`<div style="margin-top:5px;font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--blue);background:rgba(45,122,255,.1);border:1px solid rgba(45,122,255,.2);padding:2px 8px;border-radius:3px;display:inline-block">MHP · CHECK IN AT FRONT OFFICE</div>`:''}
+      </div>
+
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:7px">METHOD OF PROCEDURE</div>
+      <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:9px;padding:10px 12px;margin-bottom:12px">${mopHTML}</div>
+
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:7px">PHOTO CHECKLIST · GPS AUTO-EMBEDDED</div>
+      <div class="photos-bar${allDone?' complete':''}">
+        ${allDone?'✅':'📷'} <strong>${captured}/${checklist.length}</strong> photos captured
+        ${!allDone?'<span style="color:var(--yellow);font-size:10px;margin-left:auto">Required to submit</span>':'<span style="color:var(--green);font-size:10px;margin-left:auto">All complete!</span>'}
+      </div>
+      ${photoHTML}
+
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin:12px 0 7px">DAILY WORK REPORT · ${f.id}</div>
+      <div style="background:var(--panel2);border:1px solid rgba(0,229,160,.15);border-radius:9px;padding:12px;margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div>
+            <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px">TIME ARRIVAL</div>
+            <input id="tech-arrival" type="time" value="${new Date().toTimeString().slice(0,5)}" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;outline:none">
+          </div>
+          <div>
+            <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px">TIME DEPARTING</div>
+            <input id="tech-departure" type="time" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;outline:none">
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px">AP ENGINEER</div>
+          <input id="tech-engineer" type="text" value="${f.apEngineer||''}" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:5px;font-family:'Barlow',sans-serif;font-size:12px;outline:none">
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px">NOTES</div>
+          <textarea id="tech-notes" rows="2" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:5px;font-family:'Barlow',sans-serif;font-size:12px;outline:none;resize:none" placeholder="e.g. Splitter replaced, signal restored"></textarea>
+        </div>
+        <div>
+          <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);margin-bottom:3px">WORK COMPLETED</div>
+          <textarea id="tech-details" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 9px;border-radius:5px;font-family:'Barlow',sans-serif;font-size:12px;outline:none;resize:none" placeholder="1. Vault inspection&#10;2. Cable test&#10;3. Speed test&#10;4. Service confirmed"></textarea>
+        </div>
+      </div>
+    </div>
+    <button class="complete-btn" ${!allDone?'disabled title="Complete all photos first"':''} onclick="submitWorkReport('${f.id}')">
+      ${!allDone?`📷 ${checklist.length-captured} PHOTOS MISSING`:'📋 SUBMIT & CLOSE TICKET'}
+    </button>`;
+}
+
+// CHANGE #4: Render install lot-by-lot flow
+function renderInstallLot(body,order,lot,completedCount){
+  const photos=capturedPhotos[order.id+'-'+lot.num]||{};
+  const checklist=PHOTO_CHECKLISTS.install;
+  const captured=checklist.filter(p=>photos[p.key]).length;
+  const allDone=captured===checklist.length;
+  const lotId=order.id+'-'+lot.num.replace(' ','');
+
+  const photoHTML=checklist.map(p=>{
+    const cap=photos[p.key];
+    return `<div class="photo-step${cap?' captured':''}">
+      <div style="flex:1">
+        <div class="photo-step-label">${p.label}</div>
+        ${cap?`<div class="photo-meta">✓ ${cap.ts} · GPS: ${cap.lat}, ${cap.lng}</div>`:''}
+      </div>
+      <button class="photo-btn${cap?' done-btn':''}" onclick="capturePhotoLot('${order.id}','${lot.num}','${p.key}','${p.label}')">${cap?'✓':'📷'}</button>
+    </div>`;
+  }).join('');
+
+  const lotListHTML=order.lots.map(l=>{
+    const statusCol={done:'var(--green)',inprogress:'var(--blue)',pending:'var(--muted)'}[l.status];
+    return `<div class="lot-item${l.status==='inprogress'?' active':l.status==='done'?' done-lot':''}">
+      <div class="lot-badge">${l.num}</div>
+      <div class="lot-client">${l.client}</div>
+      <div class="lot-time">${l.sched}</div>
+      <div class="lot-dot" style="background:${statusCol}"></div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML=`
+    <div style="background:rgba(0,229,160,.06);border-bottom:1px solid rgba(0,229,160,.2);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--green);letter-spacing:1px">📡 INSTALL BATCH · ${order.id}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text);font-weight:700">${completedCount}/${order.lots.length} DONE</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:12px 14px 8px">
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:7px">TODAY'S LOT SCHEDULE</div>
+      ${lotListHTML}
+
+      <div style="margin:14px 0 7px;padding:10px 12px;background:var(--panel2);border:1px solid rgba(0,229,160,.2);border-radius:8px">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--green);letter-spacing:2px;margin-bottom:4px">CURRENT · ${lot.num}</div>
+        <div style="font-size:13px;font-weight:800;margin-bottom:2px">${lot.client}</div>
+        <div style="font-size:11px;color:var(--muted)">${order.location} · ${lot.sched}</div>
+      </div>
+
+      <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--muted);letter-spacing:2px;margin-bottom:7px">PHOTO CHECKLIST — GPS EMBEDDED</div>
+      <div class="photos-bar${allDone?' complete':''}">
+        ${allDone?'✅':'📷'} <strong>${captured}/${checklist.length}</strong> photos
+        ${!allDone?'<span style="color:var(--yellow);font-size:10px;margin-left:auto">Blocks submission</span>':'<span style="color:var(--green);font-size:10px;margin-left:auto">Ready ✓</span>'}
+      </div>
+      ${photoHTML}
+    </div>
+    <button class="complete-btn" ${!allDone?'disabled':''} onclick="completeLot('${order.id}','${lot.num}')">
+      ${!allDone?`📷 ${checklist.length-captured} PHOTOS NEEDED`:`✓ LOT ${lot.num} DONE → NEXT`}
+    </button>`;
+}
+
+function capturePhotoLot(orderId,lotNum,photoKey,labelText){
+  const mapKey=orderId+'-'+lotNum.replace(' ','');
+  if(!capturedPhotos[mapKey]) capturedPhotos[mapKey]={};
+  const f=faults.find(x=>x.id===orderId);
+  const ts=new Date().toLocaleString('en-US',{month:'2-digit',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const baseLat=f?f.lat:39.5, baseLng=f?f.lng:-121.5;
+  const lat=(baseLat+(Math.random()-.5)*0.0002).toFixed(5);
+  const lng=(baseLng+(Math.random()-.5)*0.0002).toFixed(5);
+  capturedPhotos[mapKey][photoKey]={ts,lat,lng};
+  toast(`📷 ${lotNum} · ${labelText.substring(0,35)}... GPS embedded`);
+  renderTech();
+}
+
+function completeLot(orderId,lotNum){
+  const f=faults.find(x=>x.id===orderId);
+  if(!f||!f.lots) return;
+  const lot=f.lots.find(l=>l.num===lotNum);
+  if(lot) lot.status='done';
+  // Activate next lot
+  const next=f.lots.find(l=>l.status==='pending');
+  if(next) next.status='inprogress';
+  toast(`✅ ${lotNum} complete · ${next?'Next: '+next.num:'All lots done!'}`);
+  renderTech();
+  renderList();
+}
+
+function submitInstallBatch(id){
+  const f=faults.find(x=>x.id===id);
+  f.status='done'; f.completedAt=now();
+  f.workReport={arrival:'',departure:now(),notes:`${f.lots.length} installations completed`,details:f.lots.map(l=>`${l.num} — ${l.client}: Installed`).join('\n'),engineer:f.apEngineer||'',numTechs:'2'};
+  technicians[0].status='available'; technicians[0].orders++;
+  renderList(); renderTech(); renderSTS();
+  toast(`📋 Install batch ${id} closed · ${f.lots.length} lots submitted`);
+}
+
+function submitWorkReport(id){
+  const f=faults.find(x=>x.id===id);
+  const arrival=document.getElementById('tech-arrival')?.value||'';
+  const departure=document.getElementById('tech-departure')?.value||now();
+  const notes=document.getElementById('tech-notes')?.value||'';
+  const details=document.getElementById('tech-details')?.value||'';
+  const engineer=document.getElementById('tech-engineer')?.value||'';
+  const numTechs=document.getElementById('tech-numtechs')?.value||'1';
+  if(!departure){toast('Add departure time before submitting',true);return;}
+  f.status='done'; f.completedAt=now();
+  f.workReport={arrival,departure,notes,details,engineer,numTechs};
+  technicians[0].status='available'; technicians[0].orders++;
+  renderList(); renderTech(); renderSTS();
+  toast(`📋 ${f.id} closed · Work report submitted to STS`);
+}
+
+// ==================== VIEW SWITCH ====================
+function switchView(v){
+  document.querySelectorAll('.view').forEach(el=>{el.classList.remove('active');el.style.display='none';});
+  const labels={dispatcher:'ACCESSPARKS · DISPATCHER',company:'STS · CONTRACTOR',tech:'CARLOS · TECHNICIAN'};
+  const users={dispatcher:'Marcus Prieto · AP Dispatcher',company:'Andrés Barrera · STS Operations',tech:'Carlos M. · Field Technician'};
+  document.querySelectorAll('.tab').forEach(el=>{
+    el.classList.toggle('active',el.textContent===labels[v]);
+    el.classList.toggle('inactive',el.textContent!==labels[v]);
+  });
+  const el=document.getElementById('view-'+v);
+  el.style.display='flex'; el.classList.add('active');
+  document.getElementById('user-pill').textContent=users[v];
+  if(v==='company') renderSTS();
+  if(v==='tech') renderTech();
+}
+
+// ==================== TOAST ====================
+function toast(msg,red){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(red?' red':'');
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ==================== CLOCK ====================
+setInterval(()=>{document.getElementById('phone-time').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});},1000);
+document.getElementById('phone-time').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+
+// ==================== INIT ====================
+renderList();
+renderTech();
+renderSTS();
+// Init map async, then select first order
+initMap().then(()=>{
+  renderPins();
+  selectFault('AS-64462');
+});
+</script>
+</body>
+</html>
