@@ -9,6 +9,7 @@ RUN npm run build
 # ---- Stage 2: Build Backend ----
 FROM node:20-alpine AS backend-builder
 WORKDIR /server
+RUN apk add --no-cache openssl
 COPY server/package*.json ./
 COPY server/prisma ./prisma
 RUN npm ci
@@ -20,8 +21,8 @@ RUN npx tsc -p tsconfig.json
 FROM node:20-alpine AS production
 WORKDIR /app
 
-# SQLite support for Alpine
-RUN apk add --no-cache sqlite
+# SQLite + OpenSSL support for Alpine (required by Prisma)
+RUN apk add --no-cache sqlite openssl
 
 # Copy backend
 COPY --from=backend-builder /server/package*.json ./

@@ -2,12 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model WorkOrder {
@@ -33,7 +34,7 @@ model WorkOrder {
   apPhone      String
   created      DateTime  @default(now())
   completedAt  DateTime?
-  
+
   // Relations
   photos       Photo[]
   workReport   WorkReport?
@@ -42,14 +43,14 @@ model WorkOrder {
 model Photo {
   id          String   @id @default(cuid())
   orderId     String
-  key         String   // The photo checklist key (e.g. 'router-front' or 'lot205_trench')
+  key         String   // The photo checklist key
   lat         String
   lng         String
   url         String
   timestamp   String
-  
+
   order       WorkOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
+
   @@unique([orderId, key])
 }
 
