@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  fieldsync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fieldsync-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - fieldsync-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=file:/app/data/production.db
+
+volumes:
+  fieldsync-data:
+    driver: local
