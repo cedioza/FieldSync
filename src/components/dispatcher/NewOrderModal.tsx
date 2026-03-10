@@ -25,7 +25,7 @@ export default function NewOrderModal({ isOpen, onClose }: { isOpen: boolean; on
         }
 
         const newOrder: WorkOrder = {
-            id: `AS-${faultCounter + 1}`,
+            id: `AS-${Math.floor(Math.random() * 90000) + 10000}`,
             type,
             siteType,
             region: 'AZ', // Default demo region

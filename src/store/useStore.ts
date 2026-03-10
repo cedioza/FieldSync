@@ -231,6 +231,7 @@ export const useStore = create<AppState>((set, get) => ({
                 set((state) => ({
                     orders: [newOrder, ...state.orders],
                     faultCounter: state.faultCounter + 1,
+                    selectedOrderId: newOrder.id,
                 }));
             }
         } catch (error) {
